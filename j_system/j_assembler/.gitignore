@@ -1,0 +1,5 @@
+/target
+/asm
+in.asm
+*.bin
+debug.txt

@@ -1,0 +1,13 @@
+TODO:
+- Empty stack should be a null pointer
+    -> null Pointer shouldnt dereffernceable
+    -> tos should point to the element and not above it
+- stack should start at highest possible adress of the internal mem chunk, not at u64::MAX!
+- define in all places where constants can appear (maybe??)
+- use bos register
+
+
+DONE:
+- rename ParamOffsetStack and ParamStackConstant
+- input syscall
+- define
