@@ -24,6 +24,19 @@ pub struct RawLine
     content: String,
 }
 
+#[derive(Debug,Eq,PartialEq,Clone,Hash)]
+pub struct Export
+{
+    teip: ExportType,
+    name: String,
+}
+#[derive(Debug,Eq,PartialEq,Clone,Hash)]
+pub enum ExportType
+{
+    Label,
+    Define,
+}
+
 #[derive(Debug)]
 pub struct SourceFile
 {
@@ -31,12 +44,12 @@ pub struct SourceFile
     
     /// can both reference jump labels and rom data.
     /// contains the labels that where exported
-    pub exported_labels: HashSet<String>,
+    pub exports: HashSet<Export>,
 
     /// Visable Labels in self.content
-    /// Key: Labelname
+    /// Key: name of the export and their type
     /// Value: File that holds this label
-    pub visable_labels: HashMap<String,String>
+    pub visable_exports: HashMap<Export,String>
 }
 
 pub fn get_file_includes(already_included: &mut HashMap<String, SourceFile>, current_file: &str, path: &str) -> Result<(),String>
@@ -54,7 +67,7 @@ pub fn get_file_includes(already_included: &mut HashMap<String, SourceFile>, cur
     // !!! This must happen before iterating over the rest of the includes to prevent double inclusion.
     // the labels that are visable in this file will be addes later
     already_included.insert(current_file.into(), 
-            SourceFile{content: lines, exported_labels: exports, visable_labels: HashMap::new()});
+            SourceFile{content: lines, exports: exports, visable_exports: HashMap::new()});
 
     let mut vis_labels = HashMap::new();
     // perform all includes actions for the files that included by this file
@@ -67,25 +80,25 @@ pub fn get_file_includes(already_included: &mut HashMap<String, SourceFile>, cur
         // get the exports that were just added to the list of inlcuded files.
         // since the file just got included or was included before,
         // we can just unwrap
-        let exports = already_included.get(&inlc).unwrap().exported_labels.clone();
+        let exports = already_included.get(&inlc).unwrap().exports.clone();
         for label in exports
         {  
             // if the label is already defined the Hashmap returns the filename(path?)
             // of the other include
             if let Some(other_file) = vis_labels.insert(label.clone(), inlc.clone())
             {
-                return Err(format!("\ndouble include of label {} in {}. Label is exported in {} and {}\n",
+                return Err(format!("\ndouble include of label {:#?} in {}. Label is exported in {} and {}\n",
                     label, current_file, other_file, inlc))
             };
         }
         // TODO: path in file is relative to root path
     } 
     // insert visable labels of current file
-    already_included.get_mut(current_file).unwrap().visable_labels = vis_labels;
+    already_included.get_mut(current_file).unwrap().visable_exports = vis_labels;
     Ok(())
 }
 
-fn get_exports(lines: &mut Vec<RawLine>) -> Result<HashSet<String>,String>
+fn get_exports(lines: &mut Vec<RawLine>) -> Result<HashSet<Export>,String>
 {
     let mut exports = HashSet::new();
     let mut ii = 0;
@@ -94,17 +107,32 @@ fn get_exports(lines: &mut Vec<RawLine>) -> Result<HashSet<String>,String>
     {
         if let Some(matches) = RE_EXPORT.captures(&lines[ii].content)
         {
-            // Export list, should look like this: "label1,label2, label3"
+            // Export list, should look like this: "label1,label2, label3,$def1"
             let raw_matches = matches.get(1).unwrap().as_str().trim();
             for exp in raw_matches.split(',')
             {
-                let exp = exp.trim();
-                // check valid label name
+                let mut exp = exp.trim();
+
+                // decide if it is a definition or a label
+                let exp_type = if exp.len()>1 && exp.chars().next().unwrap() == '$'
+                {
+                    // remove the '$'
+                    exp = &exp[1..];
+                    ExportType::Define
+                }
+                else
+                {
+                    ExportType::Label
+                };
+
+                // check valid label name. Skip the first char since it could be a '$',
+                // which indicates that it is a definition
                 if !exp.chars().all(|char| char.is_ascii_alphanumeric() || char == '_')
                 {
                     return Err(format!("label name '{}' is not valid", exp))
                 }
-                exports.insert(exp.into());
+
+                exports.insert(Export{ teip: exp_type, name: exp.into()});
             }
             // remove the line form provided vec
             lines.remove(ii);
