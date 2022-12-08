@@ -160,7 +160,7 @@ pub fn print_to_std_out(state: &mut MachineState) -> SysCallAction
     SysCallAction::Ok
 }
 
-pub fn print_string_terminated_uncompressed(state: &mut MachineState, mut adress: u64)  -> Result<(),String>
+pub fn print_string_terminated_uncompressed(state: &mut MachineState, mut adress: u64) -> Result<(),String>
 {
     let mut s = String::from("");
 
@@ -259,6 +259,19 @@ pub fn print_register(state: &mut MachineState, content: u64) -> Result<(),Strin
     Ok(())
 }
 
+
+/// removes the given amount of stack entries below(lower in the stack).  
+/// ### Example with: ret 2  
+///  
+/// ...  
+/// 0x9  
+/// 0x8 (parameter to called function) <- gets removed  
+/// 0x7 (parameter to called function) <- gets removed  
+/// 0x6 (return adress)  
+/// 0x5 (value in called function)  
+/// 0x4 (value in called function)  
+/// 0x3 (value in called function)  
+/// ...  
 pub fn remove_stack_entries(state: &mut MachineState, amount: u8) -> Result<(),String>
 {
     for _ in 0..amount

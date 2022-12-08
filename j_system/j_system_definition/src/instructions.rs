@@ -232,6 +232,24 @@ pusha,
 popa,
 
 call, // call arg function
+
+
+/// ## Return 
+/// ---  
+/// **Description**: Return to the caller function by jumping to the adress that is on top of the stack.
+/// The value in \<A\>
+/// **Usage**: ret A
+/// > A: Constant?  
+///  ### Example
+/// ...  
+/// 0x9  
+/// 0x8 (parameter to called function) <- gets removed  
+/// 0x7 (parameter to called function) <- gets removed  
+/// 0x6 (return adress)  
+/// 0x5 (value in called function)  
+/// 0x4 (value in called function)  
+/// 0x3 (value in called function)  
+/// ... 
 ret, // return form current function back to the caller
 
 //out, // print register to the console

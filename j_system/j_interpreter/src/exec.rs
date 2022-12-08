@@ -266,19 +266,90 @@ pub fn run_instruction(state: &mut MachineState, inst: AsmLine) -> InstructionRe
         InstructionEnum::jl     => jl(inst.get_param1(),inst.get_param2(),state),
         InstructionEnum::jel    => jel(inst.get_param1(),inst.get_param2(),state),
         InstructionEnum::shr    => shr(inst.get_param1(),inst.get_param2(),state),
-        InstructionEnum::shl    => panic!("TODO: shl"),
+        InstructionEnum::shl    => shl(inst.get_param1(),inst.get_param2(),state),
         InstructionEnum::sys    => sys(inst.get_param1(),inst.get_param2(),state),
         InstructionEnum::ret    => ret(inst.get_param1(),inst.get_param2(),state),
         InstructionEnum::call   => call(inst.get_param1(),inst.get_param2(),state),
-        InstructionEnum::or     => panic!("TODO: or"),
-        InstructionEnum::popa   => panic!("TODO: popa"),
-        InstructionEnum::pusha  => panic!("TODO: pusha"),
-        InstructionEnum::jeg    => panic!("TODO: jeg"),
-        InstructionEnum::jg     => panic!("TODO: jg"),
-        InstructionEnum::xor    => panic!("TODO: xor"),
+        InstructionEnum::or     => or(inst.get_param1(),inst.get_param2(),state),
+        InstructionEnum::popa   => unimplemented!("TODO: popa"),
+        InstructionEnum::pusha  => unimplemented!("TODO: pusha"),
+        InstructionEnum::jeg    => jeg(inst.get_param1(),inst.get_param2(),state),
+        InstructionEnum::jg     => jg(inst.get_param1(),inst.get_param2(),state),
+        InstructionEnum::xor    => xor(inst.get_param1(),inst.get_param2(),state),
     }
 }
 
+pub fn jg(param1: Option<Param>, param2: Option<Param>,state: &mut MachineState) -> InstructionReturn
+{
+    if !check_only_one_param(&param1, &param2)
+    {
+        return InstructionReturn::Err("jg needs 1 parameter".to_string());
+    }
+
+    if state.reg_state.read(Register::s) & 1<<2 != 0
+    {
+        InstructionReturn::JumpTo(get_param_value(&param1, state))
+    }
+    else
+    {
+        InstructionReturn::Next
+    }
+}
+
+pub fn jeg(param1: Option<Param>, param2: Option<Param>,state: &mut MachineState) -> InstructionReturn
+{
+    if !check_only_one_param(&param1, &param2)
+    {
+        return InstructionReturn::Err("jeg needs 1 parameter".to_string());
+    }
+
+    if state.reg_state.read(Register::s) & (1<<3 | 1<<2) != 0
+    {
+        InstructionReturn::JumpTo(get_param_value(&param1, state))
+    }
+    else
+    {
+        InstructionReturn::Next
+    }
+}
+
+fn xor(param1: Option<Param>, param2: Option<Param>,state: &mut MachineState) -> InstructionReturn
+{
+    let op1 = get_param_value(&param1, state);
+    let op2 = get_param_value(&param2, state);
+    let dest = param1.unwrap();
+
+    let res = op1 ^ op2;
+
+    if let Param::Register(reg) = dest
+    {
+        state.reg_state.store(reg, res);
+        InstructionReturn::Next
+    }
+    else
+    {
+        InstructionReturn::Err("first parameter of xor must be a register".to_string())
+    }   
+}
+
+fn or(param1: Option<Param>, param2: Option<Param>,state: &mut MachineState) -> InstructionReturn
+{
+    let op1 = get_param_value(&param1, state);
+    let op2 = get_param_value(&param2, state);
+    let dest = param1.unwrap();
+
+    let res = op1 | op2;
+
+    if let Param::Register(reg) = dest
+    {
+        state.reg_state.store(reg, res);
+        InstructionReturn::Next
+    }
+    else
+    {
+        InstructionReturn::Err("first parameter of or must be a register".to_string())
+    }   
+}
 
 pub fn add(param1: Option<Param>, param2: Option<Param>,state: &mut MachineState) -> InstructionReturn
 {
@@ -557,6 +628,34 @@ pub fn shr(param1: Option<Param>, param2: Option<Param>,state: &mut MachineState
     let mut val = get_param_value(&param1, state);
 
     val = val >> shift_amount;
+
+    store_in_dest(val, &param1, state);
+
+    InstructionReturn::Next
+}
+
+pub fn shl(param1: Option<Param>, param2: Option<Param>,state: &mut MachineState) -> InstructionReturn
+{
+    if !check_two_param(&param1, &param2)
+    {
+        return InstructionReturn::Err("shl needs 2 parameters".to_string());
+    }
+
+    if !is_register(&param1)
+    {
+        return InstructionReturn::Err("the first parameter of shl must be a register".to_string())
+    }
+
+    let shift_amount = get_param_value(&param2, state);
+
+    if shift_amount > 64
+    {
+        return InstructionReturn::Err("cannot shift by more than 64 bits".to_string());
+    }
+
+    let mut val = get_param_value(&param1, state);
+
+    val = val << shift_amount;
 
     store_in_dest(val, &param1, state);
 
