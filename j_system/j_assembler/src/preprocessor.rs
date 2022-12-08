@@ -125,8 +125,7 @@ fn get_exports(lines: &mut Vec<RawLine>) -> Result<HashSet<Export>,String>
                     ExportType::Label
                 };
 
-                // check valid label name. Skip the first char since it could be a '$',
-                // which indicates that it is a definition
+                // check valid label name
                 if !exp.chars().all(|char| char.is_ascii_alphanumeric() || char == '_')
                 {
                     return Err(format!("label name '{}' is not valid", exp))
