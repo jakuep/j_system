@@ -13,8 +13,8 @@ lazy_static!
     // detect include statements
     static ref RE_INCLUDE:          Regex = Regex::new(r"^\s*#\s*include\s+((?:[A-Za-z0-9_])+\.asm)\s*;?.*$").unwrap();
 
-    static ref RE_DEFINE_CONST:     Regex = Regex::new(r"^\s*#\s*define\s+([A-Za-z_][A-Za-z0-9_]*)\s+([0-9]+)\s*(?:\s+;.*)?$").unwrap();
-    static ref RE_GET_DEFINE_CONST: Regex = Regex::new(r"^\s*\$\s*([a-zA-Z_][0-9a-zA-Z_]*)\s*$").unwrap();
+    static ref RE_GET_DEFINITION:   Regex = Regex::new(r"^\s*#\s*define\s+([A-Za-z_][A-Za-z0-9_]*)\s+([^;]+)\s*(?:\s+;.*)?$").unwrap();
+    //static ref RE_GET_DEFINE_CONST: Regex = Regex::new(r"^\s*\$\s*([a-zA-Z_][0-9a-zA-Z_]*)\s*$").unwrap();
     
     // exported labels that should be visable in other files
     static ref RE_EXPORT:           Regex = Regex::new(r"^\s*#\s*export\s+(.*)\s*;?.*$").unwrap();            
@@ -47,17 +47,35 @@ pub struct SourceFileRun1
 {
     pub content: Vec<RawLine>,
     
-    /// can both reference jump labels and rom data.
+    /// can both reference jump labels, rom data and definitions.
     /// contains the labels that where exported
     pub exports: HashSet<Export>,
 
-    /// Visable Labels in self.content
+    /// definitions 
+    // Key: name of the definition
+    /// Value: The value the deinition will be replaced with
+    pub definitions: HashMap<String,String>,
+
+    /// Visable Exports in self.content
     /// Key: name of the export and their type
-    /// Value: File that holds this label
+    /// Value: File that holds this Value
     pub visable_exports: HashMap<Export,String>
 }
 
-pub struct SourceFileRun2{}
+/// holds the source file with its label exports and content
+pub struct SourceFileRun2
+{
+    pub content: Vec<RawLine>,
+    
+    /// can both reference jump labels and rom data.
+    /// contains the labels that where exported
+    pub exports: HashSet<String>,
+
+    /// Visable Labels in self.content
+    /// Key: name of the exported label
+    /// Value: File that holds this label
+    pub visable_exports: HashMap<String,String>
+}
 
 pub fn preprocess(root: &str) -> Result<Vec<SourceFileRun2>, String>
 {
@@ -78,12 +96,13 @@ pub fn get_file_includes(already_included: &mut HashMap<String, SourceFileRun1>,
     let mut lines = into_lines(open_file(&current_file, path)?);
     let includes = resolve_includes(&mut lines)?;
     let exports = get_exports(&mut lines)?;
+    let definitions = get_definitions(&mut lines)?;
 
     // add self to set of already includes files.
     // !!! This must happen before iterating over the rest of the includes to prevent double inclusion.
     // the labels that are visable in this file will be addes later
     already_included.insert(current_file.into(), 
-            SourceFileRun1{content: lines, exports: exports, visable_exports: HashMap::new()});
+            SourceFileRun1{content: lines, exports, definitions, visable_exports: HashMap::new()});
 
     let mut vis_labels = HashMap::new();
     // perform all includes actions for the files that included by this file
@@ -185,6 +204,41 @@ fn resolve_includes(lines: &mut Vec<RawLine>) -> Result<Vec<String>,String>
         }
     }
     Ok(includes)
+}
+
+fn get_definitions(lines: &mut Vec<RawLine>) -> Result<HashMap<String,String>,String>
+{
+    let mut defines =  HashMap::new();
+    let mut ii = 0usize;
+
+    while ii<lines.len()
+    {
+        if let Some(matches) = RE_GET_DEFINITION.captures(&lines[ii].content)
+        {
+            if let (Some(def_name),Some(value)) = 
+                (matches.get(1),matches.get(2))
+            {
+                let def_name = def_name.as_str().to_string();
+                let value = value.as_str().to_string();
+
+                if let Some(_) = defines.insert(def_name.clone(), value)
+                {
+                    return Err(format!("double definition of ->{}<-",def_name))
+                }
+            }
+            else 
+            {
+                return Err(format!("could not parse ->{}<- as definition. second definition in line: {}",lines[ii].content,ii))    
+            }
+            lines.remove(ii);
+        }
+        else 
+        {
+            ii +=1;
+        }   
+    }
+
+    Ok(defines)
 }
 
 fn open_file(file_path: &str, path: &str) -> Result<String,String>
