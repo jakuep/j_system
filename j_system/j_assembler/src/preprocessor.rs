@@ -11,10 +11,13 @@ use std::path::Path;
 lazy_static!
 {
     // detect include statements
-    static ref RE_INCLUDE:  Regex = Regex::new(r"^\s*#\s*include\s+((?:[A-Za-z0-9_])+\.asm)\s*;?.*$").unwrap();
+    static ref RE_INCLUDE:          Regex = Regex::new(r"^\s*#\s*include\s+((?:[A-Za-z0-9_])+\.asm)\s*;?.*$").unwrap();
+
+    static ref RE_DEFINE_CONST:     Regex = Regex::new(r"^\s*#\s*define\s+([A-Za-z_][A-Za-z0-9_]*)\s+([0-9]+)\s*(?:\s+;.*)?$").unwrap();
+    static ref RE_GET_DEFINE_CONST: Regex = Regex::new(r"^\s*\$\s*([a-zA-Z_][0-9a-zA-Z_]*)\s*$").unwrap();
     
     // exported labels that should be visable in other files
-    static ref RE_EXPORT:   Regex = Regex::new(r"^\s*#\s*export\s+(.*)\s*;?.*$").unwrap();            
+    static ref RE_EXPORT:           Regex = Regex::new(r"^\s*#\s*export\s+(.*)\s*;?.*$").unwrap();            
 }
 #[derive(Debug)]
 pub struct RawLine
@@ -37,8 +40,10 @@ pub enum ExportType
     Define,
 }
 
+/// holds a source file with its exports, definitions and content 
+/// after the first run of the preprocessor.
 #[derive(Debug)]
-pub struct SourceFile
+pub struct SourceFileRun1
 {
     pub content: Vec<RawLine>,
     
@@ -52,7 +57,18 @@ pub struct SourceFile
     pub visable_exports: HashMap<Export,String>
 }
 
-pub fn get_file_includes(already_included: &mut HashMap<String, SourceFile>, current_file: &str, path: &str) -> Result<(),String>
+pub struct SourceFileRun2{}
+
+pub fn preprocess(root: &str) -> Result<Vec<SourceFileRun2>, String>
+{
+    // first run of the preprocessor
+    let mut files = HashMap::new();
+    get_file_includes(&mut files, root, "")?;
+
+    Ok(vec![])
+}
+
+pub fn get_file_includes(already_included: &mut HashMap<String, SourceFileRun1>, current_file: &str, path: &str) -> Result<(),String>
 {
     // check if this file is already inlcuded
     if already_included.contains_key(current_file)
@@ -67,7 +83,7 @@ pub fn get_file_includes(already_included: &mut HashMap<String, SourceFile>, cur
     // !!! This must happen before iterating over the rest of the includes to prevent double inclusion.
     // the labels that are visable in this file will be addes later
     already_included.insert(current_file.into(), 
-            SourceFile{content: lines, exports: exports, visable_exports: HashMap::new()});
+            SourceFileRun1{content: lines, exports: exports, visable_exports: HashMap::new()});
 
     let mut vis_labels = HashMap::new();
     // perform all includes actions for the files that included by this file
@@ -87,7 +103,7 @@ pub fn get_file_includes(already_included: &mut HashMap<String, SourceFile>, cur
             // of the other include
             if let Some(other_file) = vis_labels.insert(label.clone(), inlc.clone())
             {
-                return Err(format!("\ndouble include of label {:#?} in {}. Label is exported in {} and {}\n",
+                return Err(format!("\ndouble include of label {:#?} in {}. Label is exported in {} and {}",
                     label, current_file, other_file, inlc))
             };
         }
