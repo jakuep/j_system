@@ -19,6 +19,19 @@ lazy_static!
     // exported labels that should be visable in other files
     static ref RE_EXPORT:           Regex = Regex::new(r"^\s*#\s*export\s+(.*)\s*;?.*$").unwrap();            
 }
+
+pub enum PreprocessorErros
+{
+    /// Doube definition of a label
+    DoubeDefintionLabel,
+    
+    /// Double definition of a definition
+    DoubeDefintionDefinition,
+    
+    /// invalid label name 
+    InvalidLabelName,
+}
+
 #[derive(Debug)]
 pub struct RawLine
 {
@@ -147,6 +160,12 @@ fn get_exports(lines: &mut Vec<RawLine>) -> Result<HashSet<Export>,String>
             for exp in raw_matches.split(',')
             {
                 let mut exp = exp.trim();
+
+                // empty statement?
+                if exp.is_empty()
+                {
+                    return Err("empty export statement".into());
+                }
 
                 // decide if it is a definition or a label
                 let exp_type = if exp.len()>1 && exp.chars().next().unwrap() == '$'
