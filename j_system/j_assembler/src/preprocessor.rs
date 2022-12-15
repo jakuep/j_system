@@ -17,7 +17,10 @@ lazy_static!
     //static ref RE_GET_DEFINE_CONST: Regex = Regex::new(r"^\s*\$\s*([a-zA-Z_][0-9a-zA-Z_]*)\s*$").unwrap();
     
     // exported labels that should be visable in other files
-    static ref RE_EXPORT:           Regex = Regex::new(r"^\s*#\s*export\s+(.*)\s*;?.*$").unwrap();            
+    static ref RE_EXPORT:           Regex = Regex::new(r"^\s*#\s*export\s+(.*)\s*;?.*$").unwrap();   
+    
+    // get flags
+    static ref RE_FLAGS:            Regex = Regex::new(r"^\s*#\s*set\s+(.*)\s*(?:\s+;.*)?$").unwrap();
 }
 
 pub enum PreprocessorErros
@@ -65,9 +68,13 @@ pub struct SourceFileRun1
     pub exports: HashSet<Export>,
 
     /// definitions 
-    // Key: name of the definition
+    /// Key: name of the definition
     /// Value: The value the deinition will be replaced with
     pub definitions: HashMap<String,String>,
+
+    /// Flags
+    /// contains the flags that were set for this file
+    pub flags: Vec<(String,Option<String>)>, 
 
     /// Visable Exports in self.content
     /// Key: name of the export and their type
@@ -110,12 +117,13 @@ pub fn get_file_includes(already_included: &mut HashMap<String, SourceFileRun1>,
     let includes = resolve_includes(&mut lines)?;
     let exports = get_exports(&mut lines)?;
     let definitions = get_definitions(&mut lines)?;
+    let flags = get_flags(&mut lines)?;
 
     // add self to set of already includes files.
     // !!! This must happen before iterating over the rest of the includes to prevent double inclusion.
     // the labels that are visable in this file will be addes later
     already_included.insert(current_file.into(), 
-            SourceFileRun1{content: lines, exports, definitions, visable_exports: HashMap::new()});
+            SourceFileRun1{content: lines, exports, flags, definitions, visable_exports: HashMap::new()});
 
     let mut vis_labels = HashMap::new();
     // perform all includes actions for the files that included by this file
@@ -223,6 +231,33 @@ fn resolve_includes(lines: &mut Vec<RawLine>) -> Result<Vec<String>,String>
         }
     }
     Ok(includes)
+}
+
+fn get_flags(lines: &mut Vec<RawLine>) -> Result<Vec<(String,Option<String>)>,String>
+{
+    let mut flags = vec![];
+    let mut ii = 0usize;
+
+    while ii<lines.len()
+    {
+        if let Some(matches) = RE_FLAGS.captures(&lines[ii].content)
+        {
+            if let Some(flag_name) = matches.get(1)
+            {
+                let value = if let Some(value) =matches.get(2)
+                {Some(value.as_str().to_string())}
+                else
+                {None};
+
+                flags.push((flag_name.as_str().to_string(),value));
+            }
+        }
+        else 
+        {
+            ii += 1;
+        }
+    }
+    Ok(flags)
 }
 
 fn get_definitions(lines: &mut Vec<RawLine>) -> Result<HashMap<String,String>,String>
