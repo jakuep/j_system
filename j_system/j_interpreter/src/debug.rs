@@ -1,4 +1,4 @@
-use crate::exec::MachineState;
+use crate::machine::MachineState;
 use crate::deserialization::{self, deserialize_asm};
 
 use j_system_definition::register::Register;

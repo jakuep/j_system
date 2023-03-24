@@ -12,7 +12,7 @@ mod machine;
 use std::collections::HashSet;
 
 use crate::load_bin::Binary;
-use crate::exec::{MachineState,MachineInitInfo};
+use crate::machine::{MachineState,MachineInitInfo};
 
 use clap::Parser;
 

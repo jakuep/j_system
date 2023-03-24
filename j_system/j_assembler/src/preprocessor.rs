@@ -121,7 +121,7 @@ pub fn get_file_includes(already_included: &mut HashMap<String, SourceFileRun1>,
 
     // add self to set of already includes files.
     // !!! This must happen before iterating over the rest of the includes to prevent double inclusion.
-    // the labels that are visable in this file will be addes later
+    // the labels that are visable in this file will be added later
     already_included.insert(current_file.into(), 
             SourceFileRun1{content: lines, exports, flags, definitions, visable_exports: HashMap::new()});
 
@@ -188,7 +188,7 @@ fn get_exports(lines: &mut Vec<RawLine>) -> Result<HashSet<Export>,String>
                 };
 
                 // check valid label name
-                if !exp.chars().all(|char| char.is_ascii_alphanumeric() || char == '_')
+                if !exp.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
                 {
                     return Err(format!("label name '{}' is not valid", exp))
                 }
