@@ -1,6 +1,6 @@
 use j_system_definition::instructions::*;
 use j_system_definition::register::Register;
-use crate::exec::*;
+
 use crate::machine::*;
 
 pub fn check_two_param(param1: &Option<Param>, param2: &Option<Param>) -> bool

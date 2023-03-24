@@ -2,17 +2,8 @@ use j_system_definition::register::*;
 use j_system_definition::instructions::*;
 
 use crate::check_instruction::*;
-use crate::deserialization::*;
-use crate::memory::MemModel;
 use crate::syscall::*;
-use crate::load_bin::Binary;
-use crate::debug::{ContinueAfterDebug,MachineDebug,DebugInformation};
-
-use std::fs;
-use std::time::Instant;
-use std::collections::HashSet;
-use crate::machine::{self, MachineInformation, MachineInitInfo, MachineState, InstructionReturn, Exec};
-
+use crate::machine::{MachineState, InstructionReturn, Exec};
 
 impl Exec for MachineState{
 fn run_instruction(&mut self, inst: AsmLine) -> InstructionReturn

@@ -1,10 +1,8 @@
 use j_system_definition::register::*;
 use j_system_definition::instructions::*;
 
-use crate::check_instruction::*;
 use crate::deserialization::*;
 use crate::memory::MemModel;
-use crate::syscall::*;
 use crate::load_bin::Binary;
 use crate::debug::{ContinueAfterDebug,MachineDebug,DebugInformation};
 
