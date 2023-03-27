@@ -44,7 +44,7 @@ fn jg(&mut self, param1: Option<Param>, param2: Option<Param>) -> InstructionRet
 
     if self.reg_state.read(Register::s) & 1<<2 != 0
     {
-        InstructionReturn::JumpTo(get_param_value(&param1, self))
+        InstructionReturn::JumpTo(self.get_param_value(&param1))
     }
     else
     {
@@ -61,7 +61,7 @@ fn jeg(&mut self, param1: Option<Param>, param2: Option<Param>) -> InstructionRe
 
     if self.reg_state.read(Register::s) & (1<<3 | 1<<2) != 0
     {
-        InstructionReturn::JumpTo(get_param_value(&param1, self))
+        InstructionReturn::JumpTo(self.get_param_value(&param1))
     }
     else
     {
@@ -71,8 +71,8 @@ fn jeg(&mut self, param1: Option<Param>, param2: Option<Param>) -> InstructionRe
 
 fn xor(&mut self, param1: Option<Param>, param2: Option<Param>) -> InstructionReturn
 {
-    let op1 = get_param_value(&param1, self);
-    let op2 = get_param_value(&param2, self);
+    let op1 = self.get_param_value(&param1);
+    let op2 = self.get_param_value(&param2);
     let dest = param1.unwrap();
 
     let res = op1 ^ op2;
@@ -90,8 +90,8 @@ fn xor(&mut self, param1: Option<Param>, param2: Option<Param>) -> InstructionRe
 
 fn or(&mut self, param1: Option<Param>, param2: Option<Param>) -> InstructionReturn
 {
-    let op1 = get_param_value(&param1, self);
-    let op2 = get_param_value(&param2, self);
+    let op1 = self.get_param_value(&param1);
+    let op2 = self.get_param_value(&param2);
     let dest = param1.unwrap();
 
     let res = op1 | op2;
@@ -115,7 +115,7 @@ fn add(&mut self, param1: Option<Param>, param2: Option<Param>) -> InstructionRe
         return InstructionReturn::Err("wrong paramters for add".to_string());
     }
 
-    let val = get_param_value(&param2, self);
+    let val = self.get_param_value(&param2);
 
     if let Some(reg_some) = param1
     {
@@ -161,7 +161,7 @@ fn sub(&mut self, param1: Option<Param>, param2: Option<Param>) -> InstructionRe
         return InstructionReturn::Err("wrong paramters for add".to_string());
     }
 
-    let val = crate::check_instruction::get_param_value(&param2, self);
+    let val = self.get_param_value(&param2);
 
     if let Some(reg_some) = param1
     {
@@ -196,8 +196,8 @@ fn mov(&mut self, param1: Option<Param>, param2: Option<Param>) -> InstructionRe
         return InstructionReturn::Err("mov needs 2 paramters".to_string());
     }
     
-    let val = crate::check_instruction::get_param_value(&param2,self);
-    crate::check_instruction::store_in_dest(val, &param1, self);
+    let val = self.get_param_value(&param2);
+    self.store_in_dest(val, &param1);
 
     InstructionReturn::Next
 }
@@ -206,7 +206,7 @@ fn jmp(&mut self, param1: Option<Param>, param2: Option<Param>) -> InstructionRe
 {
     if check_only_one_param(&param1, &param2)
     {
-        let val = crate::check_instruction::get_param_value(&param1, self);
+        let val = self.get_param_value(&param1);
         InstructionReturn::JumpTo(val)
     }
     else
@@ -217,8 +217,8 @@ fn jmp(&mut self, param1: Option<Param>, param2: Option<Param>) -> InstructionRe
 
 fn cmp(&mut self, param1: Option<Param>, param2: Option<Param>) -> InstructionReturn
 {
-    let val1 = crate::check_instruction::get_param_value(&param1, self);
-    let val2 = crate::check_instruction::get_param_value(&param2, self);
+    let val1 = self.get_param_value(&param1);
+    let val2 = self.get_param_value(&param2);
 
     // reset the staus register
     self.reg_state.store_to_read_only(Register::s, 0);
@@ -241,10 +241,10 @@ fn push(&mut self, param1: Option<Param>, param2: Option<Param>) -> InstructionR
         return InstructionReturn::Err("push needs 1 paramter".to_string())
     }
 
-    let val = crate::check_instruction::get_param_value(&param1, self);
+    let val = self.get_param_value(&param1);
     
     // TODO: handle result
-    push_stack(self, val).unwrap();
+    self.push_stack(val).unwrap();
     
     InstructionReturn::Next
 }
@@ -256,9 +256,9 @@ fn pop(&mut self, param1: Option<Param>, param2: Option<Param>) -> InstructionRe
         return InstructionReturn::Err("pop needs 1 paramter".to_string())
     }
 
-    match pop_stack(self)
+    match self.pop_stack()
     {
-        Ok(val) => store_in_dest(val, &param1, self),
+        Ok(val) => self.store_in_dest(val, &param1),
         Err(msg) => return InstructionReturn::Err(msg)
         //crate::output::dump_and_panic(format!("Stack is empty"), register_state, stack_state);
     }
@@ -275,7 +275,7 @@ fn je(&mut self, param1: Option<Param>, param2: Option<Param>) -> InstructionRet
 
     if self.reg_state.read(Register::s) & 1<<3 != 0
     {
-        InstructionReturn::JumpTo(get_param_value(&param1, self))
+        InstructionReturn::JumpTo(self.get_param_value(&param1))
     }
     else
     {
@@ -292,7 +292,7 @@ fn jel(&mut self, param1: Option<Param>, param2: Option<Param>) -> InstructionRe
 
     if self.reg_state.read(Register::s) & (1<<3|1<<1) != 0
     {
-        InstructionReturn::JumpTo(get_param_value(&param1, self))
+        InstructionReturn::JumpTo(self.get_param_value(&param1))
     }
     else
     {
@@ -309,7 +309,7 @@ fn jl(&mut self, param1: Option<Param>, param2: Option<Param>) -> InstructionRet
 
     if self.reg_state.read(Register::s) & 1<<1 != 0
     {
-        InstructionReturn::JumpTo(get_param_value(&param1, self))
+        InstructionReturn::JumpTo(self.get_param_value(&param1))
     }
     else
     {
@@ -324,18 +324,18 @@ fn ret(&mut self, param1: Option<Param>, param2: Option<Param>) -> InstructionRe
         return InstructionReturn::Err("ret needs 1 paramter".to_string())
     }
 
-    let stack_clean_amount = get_param_value(&param1, self);
+    let stack_clean_amount = self.get_param_value(&param1);
 
     // get the retrun adress
     // add 1 to not jump to the call again but the instruction after that
     // TODO: handle empty stack
-    let jmp_adress = pop_stack(self).unwrap();
+    let jmp_adress = self.pop_stack().unwrap();
 
     // remove arguments on stack
     for _ in 0..stack_clean_amount //as usize
     { 
         // add the ammount 
-        let _ = pop_stack(self);
+        let _ = self.pop_stack();
     }
 
     InstructionReturn::JumpTo(jmp_adress)
@@ -345,8 +345,8 @@ fn and(&mut self, param1: Option<Param>, param2: Option<Param>) -> InstructionRe
 {
     // TODO: check for valid parameters
 
-    let op1 = get_param_value(&param1, self);
-    let op2 = get_param_value(&param2, self);
+    let op1 = self.get_param_value(&param1);
+    let op2 = self.get_param_value(&param2);
     let dest = param1.unwrap();
 
     let res = op1 & op2;
@@ -374,18 +374,18 @@ fn shr(&mut self, param1: Option<Param>, param2: Option<Param>) -> InstructionRe
         return InstructionReturn::Err("the first parameter of shr must be a register".to_string())
     }
 
-    let shift_amount = get_param_value(&param2, self);
+    let shift_amount = self.get_param_value(&param2);
 
     if shift_amount > 64
     {
         return InstructionReturn::Err("cannot shift by more than 64 bits".to_string());
     }
 
-    let mut val = get_param_value(&param1, self);
+    let mut val = self.get_param_value(&param1);
 
     val = val >> shift_amount;
 
-    store_in_dest(val, &param1, self);
+    self.store_in_dest(val, &param1);
 
     InstructionReturn::Next
 }
@@ -402,18 +402,18 @@ fn shl(&mut self, param1: Option<Param>, param2: Option<Param>) -> InstructionRe
         return InstructionReturn::Err("the first parameter of shl must be a register".to_string())
     }
 
-    let shift_amount = get_param_value(&param2, self);
+    let shift_amount = self.get_param_value(&param2);
 
     if shift_amount > 64
     {
         return InstructionReturn::Err("cannot shift by more than 64 bits".to_string());
     }
 
-    let mut val = get_param_value(&param1, self);
+    let mut val = self.get_param_value(&param1);
 
     val = val << shift_amount;
 
-    store_in_dest(val, &param1, self);
+    self.store_in_dest(val, &param1);
 
     InstructionReturn::Next
 }
@@ -428,9 +428,9 @@ fn call(&mut self, param1: Option<Param>, param2: Option<Param>) -> InstructionR
     //TODO: save registers?, stackframe?
     
     // save return adress
-    push_stack(self, self.next_ptr).unwrap();
+    self.push_stack(self.next_ptr).unwrap();
 
-    InstructionReturn::JumpTo(get_param_value(&param1, self))
+    InstructionReturn::JumpTo(self.get_param_value(&param1))
 }
 
 fn sys(&mut self, param1: Option<Param>, param2: Option<Param>) -> InstructionReturn

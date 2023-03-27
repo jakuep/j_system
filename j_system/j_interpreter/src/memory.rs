@@ -30,7 +30,7 @@ impl Mem {
     {
         let mut mem = Vec::with_capacity(size);
         // pre-init memory
-        (0..size).for_each(|ii| mem.push(0));
+        (0..size).for_each(|_| mem.push(0));
         Self{0:mem}
     }
 
