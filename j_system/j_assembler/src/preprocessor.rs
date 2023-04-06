@@ -41,7 +41,8 @@ pub enum PreprocessorErros
 #[derive(Debug)]
 pub struct RawLine
 {
-    //info: OriginInformation,
+    /// the linenumber of the original input file.
+    /// is intendet for debug hints.
     line: u64,
     content: String,
 }
@@ -105,6 +106,9 @@ pub fn preprocess(root: &str) -> Result<Vec<SourceFileRun2>, String>
     // first run of the preprocessor
     let mut files = HashMap::new();
     get_file_includes(&mut files, root, "")?;
+
+    // resolve defines
+
 
     Ok(vec![])
 }
@@ -263,8 +267,43 @@ fn get_flags(lines: &mut Vec<RawLine>) -> Result<Vec<(String,Option<String>)>,St
     Ok(flags)
 }
 
+fn resolve_definitions(input: HashMap<String,SourceFileRun1>) -> Result<HashMap<String,SourceFileRun2>,String>
+{
+    let mut ret:HashMap<String,SourceFileRun2> = HashMap::new();
+    
+    for (file_name, content) in &input
+    {
+        ret.insert(file_name.clone(),SourceFileRun2 { 
+            content: vec![], 
+            //map to only keep the names????
+            exports: content.exports.iter().map(|x| x.name.clone()).collect(), 
+            visable_exports: content.visable_exports.iter().map(|(x,y)| (x.name.clone(),y.clone())).collect() 
+        }).unwrap();
+        
+        for exp in &content.visable_exports 
+        {   
+            for line in &content.content
+            {
+                // replace the content of one line with the definition
+                let new_line = line.content.replace(&exp.0.name,exp.1);
+                let handle = ret.get_mut(file_name).unwrap();
+                
+                // push the resolved line (definitions replaced with the values)
+                // and keep the line number from the original file
+                handle.content.push(RawLine { line: line.line, content: new_line });
+            }
+        }
+    }
+
+    Err("".into())
+}
+
+/// get the definitons that are declared with '#'
 fn get_definitions(lines: &mut Vec<RawLine>) -> Result<HashMap<String,String>,String>
 {
+    // Holds the definitions in this file
+    // Key: name of definition
+    // Value: Value of the definition
     let mut defines =  HashMap::new();
     let mut ii = 0usize;
 
@@ -343,5 +382,4 @@ mod tests
         let test1_exp = ["b","c"];
         let test1_vis = ["a"];
     }
-
 }
