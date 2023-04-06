@@ -29,7 +29,6 @@ fn main() {
     {
         result.push_str(&format!("{:0>20}\n",x));
     }
-
     
     fs::write("./out.bin", &result).unwrap();
     print!("Ok\n");

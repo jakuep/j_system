@@ -21,6 +21,9 @@ lazy_static!
     
     // get flags
     static ref RE_FLAGS:            Regex = Regex::new(r"^\s*#\s*set\s+(.*)\s*(?:\s+;.*)?$").unwrap();
+
+    // find use of definition in code
+    static ref RE_DEF_USE:          Regex = Regex::new(r"\$([\S]+)").unwrap();
 }
 
 pub enum PreprocessorErros
@@ -270,7 +273,7 @@ fn get_definitions(lines: &mut Vec<RawLine>) -> Result<HashMap<String,String>,St
         if let Some(matches) = RE_GET_DEFINITION.captures(&lines[ii].content)
         {
             if let (Some(def_name),Some(value)) = 
-                (matches.get(1),matches.get(2))
+                (matches.get(1), matches.get(2))
             {
                 let def_name = def_name.as_str().to_string();
                 let value = value.as_str().to_string();
@@ -293,6 +296,11 @@ fn get_definitions(lines: &mut Vec<RawLine>) -> Result<HashMap<String,String>,St
     }
 
     Ok(defines)
+}
+
+fn resolve_definitions(files: &SourceFileRun1) 
+{
+    
 }
 
 fn open_file(file_path: &str, path: &str) -> Result<String,String>

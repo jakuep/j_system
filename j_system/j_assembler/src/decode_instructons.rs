@@ -267,8 +267,7 @@ fn remove_comments(text_list: & mut Vec<String>)
         {
             // remove empty line on match of regex
             text_list.remove(ii);
-           
-
+            
             // do NOT increment ii here because the index
             // has new element after delete
         }
@@ -757,5 +756,5 @@ pub fn preprocess_input(mut input: Vec<String>, main_file_name: String) -> Prepr
         count_include_actions +=1;
     }
 
-    PreprocessedInput{rom: rom, code: code, defines: defines}
+    PreprocessedInput{rom, code, defines}
 }

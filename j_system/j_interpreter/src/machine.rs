@@ -10,7 +10,6 @@ use std::fs;
 use std::time::Instant;
 use std::collections::HashSet;
 
-
 pub trait Exec
 {
     fn run_instruction(&mut self, inst: AsmLine) -> InstructionReturn;
