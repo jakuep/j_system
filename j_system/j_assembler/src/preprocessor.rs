@@ -26,6 +26,7 @@ lazy_static!
     static ref RE_DEF_USE:          Regex = Regex::new(r"\$([\S]+)").unwrap();
 }
 
+#[repr(C)]
 pub enum PreprocessorErros
 {
     /// Doube definition of a label
@@ -335,11 +336,6 @@ fn get_definitions(lines: &mut Vec<RawLine>) -> Result<HashMap<String,String>,St
     }
 
     Ok(defines)
-}
-
-fn resolve_definitions(files: &SourceFileRun1) 
-{
-    
 }
 
 fn open_file(file_path: &str, path: &str) -> Result<String,String>
