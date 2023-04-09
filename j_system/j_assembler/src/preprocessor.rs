@@ -274,12 +274,12 @@ fn resolve_definitions(input: HashMap<String,SourceFileRun1>) -> Result<HashMap<
     
     for (file_name, content) in &input
     {
-        ret.insert(file_name.clone(),SourceFileRun2 { 
+        let _ = ret.insert(file_name.clone(),SourceFileRun2 { 
             content: vec![], 
             //map to only keep the names????
             exports: content.exports.iter().map(|x| x.name.clone()).collect(), 
             visable_exports: content.visable_exports.iter().map(|(x,y)| (x.name.clone(),y.clone())).collect() 
-        }).unwrap();
+        });
         
         for exp in &content.visable_exports 
         {   
