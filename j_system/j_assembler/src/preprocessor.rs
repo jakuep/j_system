@@ -153,7 +153,7 @@ pub fn get_file_includes(already_included: &mut HashMap<String, SourceFileRun1>,
             {
                 return Err(format!("\ndouble include of label {:#?} in {}. Label is exported in {} and {}",
                     label, current_file, other_file, inlc))
-            };
+            }
         }
         // TODO: path in file is relative to root path
     } 
