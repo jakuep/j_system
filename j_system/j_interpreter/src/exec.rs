@@ -669,7 +669,7 @@ pub fn call(param1: Option<Param>, param2: Option<Param>,state: &mut MachineStat
         return InstructionReturn::Err("call only needs 1 parameter".to_string());
     }
 
-    //TODO: save registers?, stackframe?
+    // TODO: save registers?, stackframe?
     
     // save return adress
     push_stack(state, state.next_ptr).unwrap();
