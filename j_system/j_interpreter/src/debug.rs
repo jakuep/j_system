@@ -42,6 +42,7 @@ pub trait MachineDebug
     fn get_regs(&mut self);
     fn peek_stack(&mut self);
     fn peek_instructions(&mut self);
+    fn read_mem(&mut self, mem: u64);
 
     /// returns true if `PC` points to a adress that has a breakpoint
     fn check_breakpoint(&mut self) -> bool;
@@ -56,6 +57,20 @@ impl MachineDebug for MachineState
     fn check_breakpoint(&mut self) -> bool
     {
         self.debug.debug_mode.as_ref().unwrap().contains(&self.reg_state.read(Register::pc))
+    }
+
+    fn read_mem(&mut self, ptr:u64) 
+    {
+        let s;
+        if let Ok(val) = self.mem_state.read(ptr)
+        {
+            s = format!("{}\n",val);
+        }
+        else 
+        {
+            s = format!("could not read address: {}\n", ptr);
+        }
+        self.machine_information.push_str(s)
     }
 
     /// displays the breakpoint CLI when a breakpoint is set for this adress
@@ -113,7 +128,7 @@ impl MachineDebug for MachineState
                 match command
                 {
                     DebugCommand::PrintRegisters    => {},
-                    DebugCommand::MemRead(ptr)      => self.machine_information.push_str(format!("{}\n", self.mem_state.read(ptr).unwrap())),
+                    DebugCommand::MemRead(ptr)      => self.read_mem(ptr),
                     DebugCommand::PrintState        => self.print_state(),
                     DebugCommand::PrintCurrentAsm   => self.print_current_asm(),
                     DebugCommand::Exit              => return ContinueAfterDebug::Quit,
