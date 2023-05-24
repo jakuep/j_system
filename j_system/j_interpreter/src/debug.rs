@@ -210,12 +210,13 @@ impl MachineDebug for MachineState
     fn peek_stack(&mut self)
     {
         self.machine_information.push_str("Stack:\n".into());
+        let tos = self.reg_state.read(Register::tos);
+        let stack_size = self.mem_state.get_mem_size() -tos;  // use highest adress for this
 
-        let stack_size = self.mem_state.get_mem_size()-1 - self.reg_state.read(Register::tos); // use highest adress for this
-
-        if stack_size==0
+        if tos==0 || stack_size==0 
         {
             self.machine_information.push_str("Stack is Empty\n".into());
+            return;
         }
 
         let display_size = if STACK_DISPLAY_SIZE> stack_size {stack_size} else {STACK_DISPLAY_SIZE};
@@ -229,7 +230,7 @@ impl MachineDebug for MachineState
             }
 
             // TODO: -1 until tos fix
-            let addr = self.reg_state.read(Register::tos)+1+ ii;
+            let addr = self.reg_state.read(Register::tos)+ ii;
             // TODO: handle fail 
             let val = self.mem_state.read(addr).unwrap();
 
