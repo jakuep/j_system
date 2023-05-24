@@ -113,6 +113,7 @@ impl MemModel
 
         self.rom_base_ptr = 0;
         self.code_base_ptr= self.rom_base_ptr+ rom.len() as u64;
+        self.code_size = code.len() as u64;
 
         rom.iter().enumerate().for_each(|(ii,val)| self.mem.store(self.rom_base_ptr + ii as u64, *val).unwrap());
         code.iter().enumerate().for_each(|(ii,val)| self.mem.store(self.code_base_ptr + ii as u64, *val).unwrap());

@@ -5,12 +5,11 @@ _rom
 _code
     .start:
 
-    mov a,0
     ; inputbuffer size
     push 10
     ; allocate buffer
     call .STDmalloc
-    call .STDPrintF
+    
 
     call .STDend
 

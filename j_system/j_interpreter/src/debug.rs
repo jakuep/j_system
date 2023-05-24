@@ -195,15 +195,21 @@ impl MachineDebug for MachineState
         
         // no \n
         self.machine_information.push_str("->".into());
-
+        let mut found_next_instriction = false;
         for _ in 0..=ASM_DISPLAY_SIZE
         {
             if let Some((asm,new_addr)) = deserialize_asm(&self.mem_state, addr)
             {
                 self.machine_information.push_str(format!("\t{}\t{}",addr, &asm.as_string()));
                 addr = new_addr;
+                found_next_instriction = true;
             }
         }
+
+        if !found_next_instriction
+        {
+            self.machine_information.push_str(format!("can not fetch next instruction from: {}\t{:#?}\n",addr,self.mem_state.read(addr)))
+        } 
     }
 
     /// peek at top of stack
