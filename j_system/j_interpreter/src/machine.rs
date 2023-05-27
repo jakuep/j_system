@@ -8,7 +8,7 @@ use crate::debug::{ContinueAfterDebug,MachineDebug,DebugInformation};
 
 use std::fs;
 use std::time::Instant;
-use std::collections::HashSet;
+use std::collections::{HashSet,HashMap};
 
 pub trait Exec
 {
@@ -45,6 +45,10 @@ pub struct MachineInitInfo
     /// contains a list of all breakpoints
     /// and a list of "debug Symbols"?
     pub debug_mode: Option<HashSet<u64>>,
+
+    /// contains the labels with the label name(s)
+    /// multiple lables can refer to the same address
+    pub symbols: Option<HashMap<u64,Vec<String>>>,
     pub write_to_file: bool,
 }
 
@@ -133,7 +137,7 @@ impl MachineState
 {
     pub fn init(config: MachineInitInfo) -> Self
     {
-        let MachineInitInfo{max_cycles, mem_size, debug_mode, write_to_file} = config;
+        let MachineInitInfo{max_cycles, mem_size, debug_mode, write_to_file,symbols} = config;
 
         // mem_size: u64,breakpoints: Option< HashSet<u64>>
 
@@ -150,7 +154,7 @@ impl MachineState
             next_ptr: 0,
 
             // TODO: add the breakpoints/parse from debug output file
-            debug: DebugInformation{debug_mode,debug_step: None, symbols: None}
+            debug: DebugInformation{debug_mode,debug_step: None, symbols}
         }
     }
 

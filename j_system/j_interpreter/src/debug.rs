@@ -3,7 +3,7 @@ use crate::deserialization::{self, deserialize_asm};
 
 use j_system_definition::register::Register;
 
-use std::collections::HashSet;
+use std::collections::{HashSet,HashMap};
 use std::io::{self, Write};
 
 const ASM_DISPLAY_SIZE:u64 = 4;
@@ -23,7 +23,9 @@ pub struct DebugInformation
     /// Contains all pointers that hava a breakpoint (and symbols?)
     pub debug_mode: Option<HashSet<u64>>,
 
-    pub symbols: Option<Vec<String>>,
+    /// contains the labels with the label name(s)
+    /// multiple lables can refer to the same address
+    pub symbols: Option<HashMap<u64,Vec<String>>>,
     
     /// is `None` when the machine is not stepping in the debugger.
     /// is `Some(<val>)` when the debugger is stepping val-amount of
@@ -281,6 +283,13 @@ fn get_debug_command(command: &str) -> Option<DebugCommand>
         ("c",1)     => Some(DebugCommand::Continue),
         ("dump",1)  => Some(DebugCommand::Dump),
         ("m",2)     => Some(DebugCommand::MemRead(parts[1].parse::<u64>().ok()?)),
+
+        // set/unset breakpoints
+        ("set",2)   => todo!(),
+        ("unset",2) => todo!(),
+
+        // list active breakpoints
+        ("list",2)  => todo!(),
 
         _ => None 
     }

@@ -1,7 +1,13 @@
 use j_system_definition::instructions::AsmLine;
+use crate::decode_instructons::LabelPointer;
 use std::fs;
 
-pub fn debug_ouput(code: &Vec<AsmLine>, instruction_position: Vec<u64>, start: u64, rom_len: u64)
+pub fn debug_ouput(
+    code: &Vec<AsmLine>, 
+    instruction_position: Vec<u64>, 
+    start: u64, 
+    rom_len: u64, 
+    labels: Vec<LabelPointer>)
 {
     let mut s = String::new();
 
@@ -17,4 +23,11 @@ pub fn debug_ouput(code: &Vec<AsmLine>, instruction_position: Vec<u64>, start: u
     }
  
     fs::write("debug.txt", s).unwrap();
+
+    let mut s = String::new();
+    for label in labels
+    {
+        s.push_str(&format!("{}\t{}\n",label.pos,label.identifier))
+    }
+    fs::write("labels.dbg",s).unwrap();
 }

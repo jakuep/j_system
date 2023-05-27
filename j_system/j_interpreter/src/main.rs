@@ -9,7 +9,8 @@ mod load_bin;
 mod debug;
 mod machine;
 
-use std::collections::HashSet;
+use std::collections::{HashSet,HashMap};
+use std::fs;
 
 use crate::load_bin::Binary;
 use crate::machine::{MachineState,MachineInitInfo};
@@ -70,11 +71,32 @@ fn main() {
     //breakpoints.insert(9);
     //breakpoints.insert(10);
 
+    let symbols = if let Ok(inp) = fs::read_to_string("labels.dbg")
+        {
+            let map = HashMap::new();
+            
+            for line in inp.trim().split('\n')
+            {
+                let parts:Vec<&str> = line.split('\t').collect();
+                if parts.len() < 2
+                {continue;}
+
+                
+
+            }
+
+            Some(map)
+        }
+        else
+        {None};
+
+
     let init = MachineInitInfo{
             max_cycles: args.cycle_limit,
             mem_size: args.mem_size,
             debug_mode: if args.debug {Some(breakpoints)} else {None},
-            write_to_file: args.output_to_file
+            write_to_file: args.output_to_file,
+            symbols
         };
     
     let mut b = Binary::new();
@@ -82,6 +104,9 @@ fn main() {
 
     // init machine in debug mode by providing Some(breakpoints)
     let mut machine = MachineState::init(init);
+    
+
+
     machine.laod_into_state(b);
 
     machine.run_program();
