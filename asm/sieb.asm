@@ -4,17 +4,67 @@ _rom
 
 _code
     .start:
-
-    ; inputbuffer size
-    push 10
-    ; allocate buffer
-    call .STDmalloc
-    
+    mov a,0
+    push 12
+    call .getuserinput
+    mov b,a
 
     call .STDend
 
 
+.getuserinput:
+    ; inputbuffer size
+    push 10
+    ; allocate buffer
+    call .STDmalloc
 
+
+
+    ; input syscall
+    push f
+    push 10
+    call .STDInput
+
+    ; number placeholder / return value
+    mov a,0
+
+    ; count iterations
+    mov c,0
+
+    ; check input for digits
+    ; loop unitl null termintion
+    ; b holds next address, f is base ptr and add iterations from c
+    mov b,0
+    add b,f
+    add b,c
+    cmp [b],0
+    je .endloopinput
+    ; continue if not finished
+    ; get char into register d
+    mov d,[b]
+    
+    ; test if the char is ascii
+    ; lover boundary
+    cmp 48,d
+    jg .errinput
+    ; upper boundary
+    cmp 57,d
+    jl .errinput
+
+    ; from here on char is considered valid
+    
+    ; get numeric-value form ascii char
+    sub d,48
+    
+    shl d,c 
+
+
+
+    .endloopinput:
+    .errinput:
+    push f
+    call .STDfree
+    ret 0
 
 .modulo:
     .div:
