@@ -71,30 +71,12 @@ fn main() {
     //breakpoints.insert(9);
     //breakpoints.insert(10);
 
-    let symbols = if let Ok(inp) = fs::read_to_string("labels.dbg")
-        {
-            let map = HashMap::new();
-            
-            for line in inp.trim().split('\n')
-            {
-                let parts:Vec<&str> = line.split('\t').collect();
-                if parts.len() < 2
-                {continue;}
-
-                
-
-            }
-
-            Some(map)
-        }
-        else
-        {None};
-
+    let symbols = load_bin::load_symbols();
 
     let init = MachineInitInfo{
             max_cycles: args.cycle_limit,
             mem_size: args.mem_size,
-            debug_mode: if args.debug {Some(breakpoints)} else {None},
+            debug_mode: Some(breakpoints), //if args.debug {Some(breakpoints)} else {None},
             write_to_file: args.output_to_file,
             symbols
         };

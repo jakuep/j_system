@@ -7,7 +7,7 @@ pub fn debug_ouput(
     instruction_position: Vec<u64>, 
     start: u64, 
     rom_len: u64, 
-    labels: Vec<LabelPointer>)
+    labels: Vec<(String,u64)>)
 {
     let mut s = String::new();
 
@@ -20,6 +20,7 @@ pub fn debug_ouput(
     {
         s.push_str(&format!("{}\t", pos));
         s.push_str(&ins.as_string());
+        s.push('\n');
     }
  
     fs::write("debug.txt", s).unwrap();
@@ -27,7 +28,7 @@ pub fn debug_ouput(
     let mut s = String::new();
     for label in labels
     {
-        s.push_str(&format!("{}\t{}\n",label.pos,label.identifier))
+        s.push_str(&format!("{}\t{}\n",label.1,label.0))
     }
     fs::write("labels.dbg",s).unwrap();
 }

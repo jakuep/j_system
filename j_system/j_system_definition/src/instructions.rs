@@ -33,8 +33,6 @@ impl AsmLine
             s.push_str(", ");
             s.push_str(&param2_str);
         }
-        s.push_str("\n");
-
         s
     }
 

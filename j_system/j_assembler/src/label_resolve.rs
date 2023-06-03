@@ -6,12 +6,23 @@ use std::collections::HashMap;
 pub fn remove_labels_from_asm(
     code_with_labels: Vec<AsmLineLabel>, 
     lable_table: &mut Vec<LabelPointer>, 
-    defines: HashMap<String,u64>, 
+    defines: HashMap<String,u64>,
+    debug_symbols: &mut Vec<(String,u64)>,
     rom_size:u64) -> (Vec<AsmLine>, u64, Vec<u64>)
 {
     let instruction_position = calc_sersed_code_positions(&code_with_labels, rom_size);
     let mut code_without_labels:Vec<AsmLine> = vec![];
     let start_of_execution_ptr = label_to_adress("start".to_string(), lable_table, &instruction_position);
+
+    // get position of labels for debug output
+    // INFO: the label tabel seems to hold the incorrect adress
+    for lab in &*lable_table
+    {
+        // get the identifier/name of the label
+        let name = lab.identifier.clone();
+        let addr = label_to_adress(name.clone(), lable_table, &instruction_position);
+        debug_symbols.push((name,addr));
+    }
     
     for instr in code_with_labels
     {

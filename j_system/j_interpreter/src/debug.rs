@@ -2,6 +2,9 @@ use crate::machine::MachineState;
 use crate::deserialization::{self, deserialize_asm};
 
 use j_system_definition::register::Register;
+use j_system_definition::instructions::InstructionEnum;
+use j_system_definition::instructions::Param;
+use j_system_definition::instructions::ParamType;
 
 use std::collections::{HashSet,HashMap};
 use std::io::{self, Write};
@@ -202,7 +205,42 @@ impl MachineDebug for MachineState
         {
             if let Some((asm,new_addr)) = deserialize_asm(&self.mem_state, addr)
             {
-                self.machine_information.push_str(format!("\t{}\t{}",addr, &asm.as_string()));
+                let mut symbols_str:String = "".into();
+                // add symbols if it is a call instruction or a jump instruction
+                match asm.instruction
+                {
+                    InstructionEnum::je   |
+                    InstructionEnum::jeg  |  
+                    InstructionEnum::jel  |  
+                    InstructionEnum::jg   | 
+                    InstructionEnum::jl   |
+                    InstructionEnum::jmp  |
+                    InstructionEnum::call 
+                        => {
+                            if let Some(map) =  &self.debug.symbols
+                            {
+                                // get the address that will be jumped to/ called
+                                let jmp_parm = asm.get_param1().unwrap();
+                                
+                                // only usefull when jump/call point is a constant
+                                if let Param::Constant(jmp_addr) = jmp_parm 
+                                {
+                                    if let Some(symbols) = map.get(&jmp_addr) 
+                                    {
+                                        symbols_str.push_str("; ");
+                                        for symbol in symbols
+                                        {
+                                            symbols_str.push_str(&(symbol.to_owned() + " "));
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                    
+                    _ => {}
+                }
+                
+                self.machine_information.push_str(format!("\t{}\t{}\t{}\n",addr, &asm.as_string(),symbols_str));
                 addr = new_addr;
                 found_next_instriction = true;
             }
