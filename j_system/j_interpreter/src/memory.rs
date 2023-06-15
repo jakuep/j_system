@@ -174,7 +174,7 @@ impl MemModel
         let mut possible_spot_ptr: Option<u64> = None;
         let mut possible_spot_size: Option<u64> = None;
 
-        // last adress of code-section
+        // first usable adress after the code section
         let code_end = self.code_base_ptr + self.code_size;
 
         // if there are no allocations in the allocations-table we can directly check 
@@ -185,7 +185,7 @@ impl MemModel
             {
                 // allocation adress should be as low as possible to 
                 // give as much space to the stack as possible.
-                let ptr = code_end + size;
+                let ptr = code_end;
 
                 self.alloc_tabel.insert(Allocation{ptr, size});
                 
@@ -337,48 +337,38 @@ impl PartialEq for Allocation
 #[cfg(test)]
 mod tests
 {
-    //use super::*;
+    use super::*;
 
-    // #[test]
-    // fn rom_read_at_0_test()
-    // {
-    //     let mut mm = MemModel::new(10);
+    #[test]
+    fn rom_read_at_0_test()
+    {
+        // init with size: 10
+        let mem = MemModel::new(10);
+        // try to deref 0 should fail
+        assert!(mem.read(0).is_err());
+    }
 
-    //     mm.rom = vec![1,2,3];
+    #[test]
+    fn rom_read_at()
+    {
+        let mut mm = MemModel::new(10);
 
-    //     assert_eq!(mm.read_from_address(0),None)
-    // }
+        assert_eq!(mm.store(1,1), Ok(()));
+        assert_eq!(mm.store(42,2), Ok(()));
+        assert_eq!(mm.store(7,3), Ok(()));
 
-    // #[test]
-    // fn rom_read_at_max_test()
-    // {
-    //     let mut mm = MemModel::new(10);
+        assert_eq!(mm.read(2),Ok(42))
+    }
 
-    //     mm.rom = vec![1,2,3];
+    #[test]
+    fn rom_read_on_emty_test()
+    {
+        let mm = MemModel::new(10);
+        // everything should be 0 
+        assert_eq!(mm.read(2),Ok(0))
+    }
 
-    //     assert_eq!(mm.read_from_address(2),Some(3))
-    // }
 
-    // #[test]
-    // fn rom_read_on_emty_test()
-    // {
-    //     let mut mm = MemModel::new(10);
-
-    //     mm.rom = vec![];
-
-    //     assert_eq!(mm.read_from_address(2),None)
-    // }
-
-    // #[test]
-    // fn code_read_at_0_test()
-    // {
-    //     let mut mm = MemModel::new(10);
-
-    //     mm.rom = vec![1,2,3];
-    //     mm.code = vec![4,5,6];
-
-    //     assert_eq!(mm.read_from_address(3),Some(4))
-    // }
 
     // #[test]
     // fn code_read_at_max_test()
@@ -413,19 +403,19 @@ mod tests
     //     assert_eq!(mm.read_from_address(3),Some(4))
     // }
 
-    // #[test]
-    // fn heap_read_basic_test()
-    // {
-    //     let mut mm = MemModel::new(10);
+    #[test]
+    fn heap_malloc_basic_test()
+    {
+        let mut mm = MemModel::new(10);
 
-    //     mm.rom = vec![1,2];
-    //     mm.code = vec![1,2,3,4];
+        // set heap boundaries
+        mm.code_base_ptr = 1;
+        mm.code_size = 1;
 
-    //     let he = HeapElem{ptr:6,data: vec![1,2,3]};
-    //     mm.heap.push(he);
+        let maybe_ptr = mm.malloc(3);
 
-    //     assert_eq!(mm.read_from_address(7),Some(2))
-    // }
+        assert_eq!(maybe_ptr,Some(2))
+    }
 
     // #[test]
     // fn stack_read_basic_test()
