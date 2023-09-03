@@ -9,10 +9,11 @@ mod load_bin;
 mod debug;
 mod machine;
 
-use std::collections::HashSet;
+use std::collections::{HashSet,HashMap};
+use std::fs;
 
 use crate::load_bin::Binary;
-use crate::exec::{MachineState,MachineInitInfo};
+use crate::machine::{MachineState,MachineInitInfo};
 
 use clap::Parser;
 
@@ -70,11 +71,14 @@ fn main() {
     //breakpoints.insert(9);
     //breakpoints.insert(10);
 
+    let symbols = load_bin::load_symbols();
+
     let init = MachineInitInfo{
             max_cycles: args.cycle_limit,
             mem_size: args.mem_size,
-            debug_mode: if args.debug {Some(breakpoints)} else {None},
-            write_to_file: args.output_to_file
+            debug_mode: Some(breakpoints), //if args.debug {Some(breakpoints)} else {None},
+            write_to_file: args.output_to_file,
+            symbols
         };
     
     let mut b = Binary::new();
@@ -82,6 +86,9 @@ fn main() {
 
     // init machine in debug mode by providing Some(breakpoints)
     let mut machine = MachineState::init(init);
+    
+
+
     machine.laod_into_state(b);
 
     machine.run_program();

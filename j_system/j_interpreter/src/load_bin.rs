@@ -1,5 +1,6 @@
-use std::fs::File;
+use std::fs::{File, self};
 use std::io::prelude::*;
+use std::collections::HashMap;
 
 pub struct Binary
 {
@@ -45,5 +46,55 @@ impl Binary{
         self.rom = rom.to_vec();
         self.code = code.to_vec();
     }
+
+}
+
+pub fn load_symbols() -> Option<HashMap<u64,Vec<String>>>
+{
+    if let Ok(inp) = fs::read_to_string("labels.dbg")
+    {
+        let mut map:HashMap<u64, Vec<String>> = HashMap::new();
+        
+        for line in inp.trim().split('\n')
+        {
+            if let Some((addr,label_name)) =parse_parts(line)
+            {
+                // check if there is already a entry pointing to this address
+                if let Some(handle) = map.get_mut(&addr)
+                {
+                    // if already present, add label name to address
+                    handle.push(label_name);
+                }
+                else
+                {
+                    // add new vec if nothing yet points to this address
+                    let _ = map.insert(addr, vec![label_name]);
+                }
+            }
+            
+
+        }
+
+        Some(map)
+    }
+    else
+    {
+        None
+    }
+}
+
+fn parse_parts(inp: &str) -> Option<(u64,String)>
+{
+    let parts:Vec<&str> = inp.trim().split('\t').collect();
+    if parts.len() < 2
+    {return None}
+    let addr:u64 = parts[0].parse().ok()?;
+    let label_name = parts[1];
+    
+    // check for valid label name
+    if !label_name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+    {return None}
+
+    return Some((addr,label_name.into()));
 
 }

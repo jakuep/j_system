@@ -13,16 +13,37 @@ lazy_static!
     // detect include statements
     static ref RE_INCLUDE:          Regex = Regex::new(r"^\s*#\s*include\s+((?:[A-Za-z0-9_])+\.asm)\s*;?.*$").unwrap();
 
-    static ref RE_DEFINE_CONST:     Regex = Regex::new(r"^\s*#\s*define\s+([A-Za-z_][A-Za-z0-9_]*)\s+([0-9]+)\s*(?:\s+;.*)?$").unwrap();
-    static ref RE_GET_DEFINE_CONST: Regex = Regex::new(r"^\s*\$\s*([a-zA-Z_][0-9a-zA-Z_]*)\s*$").unwrap();
+    static ref RE_GET_DEFINITION:   Regex = Regex::new(r"^\s*#\s*define\s+([A-Za-z_][A-Za-z0-9_]*)\s+([^;]+)\s*(?:\s+;.*)?$").unwrap();
+    //static ref RE_GET_DEFINE_CONST: Regex = Regex::new(r"^\s*\$\s*([a-zA-Z_][0-9a-zA-Z_]*)\s*$").unwrap();
     
     // exported labels that should be visable in other files
-    static ref RE_EXPORT:           Regex = Regex::new(r"^\s*#\s*export\s+(.*)\s*;?.*$").unwrap();            
+    static ref RE_EXPORT:           Regex = Regex::new(r"^\s*#\s*export\s+(.*)\s*;?.*$").unwrap();   
+    
+    // get flags
+    static ref RE_FLAGS:            Regex = Regex::new(r"^\s*#\s*set\s+(.*)\s*(?:\s+;.*)?$").unwrap();
+
+    // find use of definition in code
+    static ref RE_DEF_USE:          Regex = Regex::new(r"\$([\S]+)").unwrap();
 }
+
+#[repr(C)]
+pub enum PreprocessorErros
+{
+    /// Doube definition of a label
+    DoubeDefintionLabel,
+    
+    /// Double definition of a definition
+    DoubeDefintionDefinition,
+    
+    /// invalid label name 
+    InvalidLabelName,
+}
+
 #[derive(Debug)]
 pub struct RawLine
 {
-    //info: OriginInformation,
+    /// the linenumber of the original input file.
+    /// is intendet for debug hints.
     line: u64,
     content: String,
 }
@@ -47,23 +68,48 @@ pub struct SourceFileRun1
 {
     pub content: Vec<RawLine>,
     
-    /// can both reference jump labels and rom data.
+    /// can both reference jump labels, rom data and definitions.
     /// contains the labels that where exported
     pub exports: HashSet<Export>,
 
-    /// Visable Labels in self.content
+    /// definitions 
+    /// Key: name of the definition
+    /// Value: The value the deinition will be replaced with
+    pub definitions: HashMap<String,String>,
+
+    /// Flags
+    /// contains the flags that were set for this file
+    pub flags: Vec<(String,Option<String>)>, 
+
+    /// Visable Exports in self.content
     /// Key: name of the export and their type
-    /// Value: File that holds this label
+    /// Value: File that holds this Value
     pub visable_exports: HashMap<Export,String>
 }
 
-pub struct SourceFileRun2{}
+/// holds the source file with its label exports and content
+pub struct SourceFileRun2
+{
+    pub content: Vec<RawLine>,
+    
+    /// can both reference jump labels and rom data.
+    /// contains the labels that where exported
+    pub exports: HashSet<String>,
+
+    /// Visable Labels in self.content
+    /// Key: name of the exported label
+    /// Value: File that holds this label
+    pub visable_exports: HashMap<String,String>
+}
 
 pub fn preprocess(root: &str) -> Result<Vec<SourceFileRun2>, String>
 {
     // first run of the preprocessor
     let mut files = HashMap::new();
     get_file_includes(&mut files, root, "")?;
+
+    // resolve defines
+
 
     Ok(vec![])
 }
@@ -78,12 +124,14 @@ pub fn get_file_includes(already_included: &mut HashMap<String, SourceFileRun1>,
     let mut lines = into_lines(open_file(&current_file, path)?);
     let includes = resolve_includes(&mut lines)?;
     let exports = get_exports(&mut lines)?;
+    let definitions = get_definitions(&mut lines)?;
+    let flags = get_flags(&mut lines)?;
 
     // add self to set of already includes files.
     // !!! This must happen before iterating over the rest of the includes to prevent double inclusion.
-    // the labels that are visable in this file will be addes later
+    // the labels that are visable in this file will be added later
     already_included.insert(current_file.into(), 
-            SourceFileRun1{content: lines, exports: exports, visable_exports: HashMap::new()});
+            SourceFileRun1{content: lines, exports, flags, definitions, visable_exports: HashMap::new()});
 
     let mut vis_labels = HashMap::new();
     // perform all includes actions for the files that included by this file
@@ -105,7 +153,7 @@ pub fn get_file_includes(already_included: &mut HashMap<String, SourceFileRun1>,
             {
                 return Err(format!("\ndouble include of label {:#?} in {}. Label is exported in {} and {}",
                     label, current_file, other_file, inlc))
-            };
+            }
         }
         // TODO: path in file is relative to root path
     } 
@@ -129,6 +177,12 @@ fn get_exports(lines: &mut Vec<RawLine>) -> Result<HashSet<Export>,String>
             {
                 let mut exp = exp.trim();
 
+                // empty statement?
+                if exp.is_empty()
+                {
+                    return Err("empty export statement".into());
+                }
+
                 // decide if it is a definition or a label
                 let exp_type = if exp.len()>1 && exp.chars().next().unwrap() == '$'
                 {
@@ -142,7 +196,7 @@ fn get_exports(lines: &mut Vec<RawLine>) -> Result<HashSet<Export>,String>
                 };
 
                 // check valid label name
-                if !exp.chars().all(|char| char.is_ascii_alphanumeric() || char == '_')
+                if !exp.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
                 {
                     return Err(format!("label name '{}' is not valid", exp))
                 }
@@ -187,6 +241,103 @@ fn resolve_includes(lines: &mut Vec<RawLine>) -> Result<Vec<String>,String>
     Ok(includes)
 }
 
+fn get_flags(lines: &mut Vec<RawLine>) -> Result<Vec<(String,Option<String>)>,String>
+{
+    let mut flags = vec![];
+    let mut ii = 0usize;
+
+    while ii<lines.len()
+    {
+        if let Some(matches) = RE_FLAGS.captures(&lines[ii].content)
+        {
+            if let Some(flag_name) = matches.get(1)
+            {
+                let value = if let Some(value) =matches.get(2)
+                {Some(value.as_str().to_string())}
+                else
+                {None};
+
+                flags.push((flag_name.as_str().to_string(),value));
+            }
+        }
+        else 
+        {
+            ii += 1;
+        }
+    }
+    Ok(flags)
+}
+
+fn resolve_definitions(input: HashMap<String,SourceFileRun1>) -> Result<HashMap<String,SourceFileRun2>,String>
+{
+    let mut ret:HashMap<String,SourceFileRun2> = HashMap::new();
+    
+    for (file_name, content) in &input
+    {
+        let _ = ret.insert(file_name.clone(),SourceFileRun2 { 
+            content: vec![], 
+            //map to only keep the names????
+            exports: content.exports.iter().map(|x| x.name.clone()).collect(), 
+            visable_exports: content.visable_exports.iter().map(|(x,y)| (x.name.clone(),y.clone())).collect() 
+        });
+        
+        for exp in &content.visable_exports 
+        {   
+            for line in &content.content
+            {
+                // replace the content of one line with the definition
+                let new_line = line.content.replace(&exp.0.name,exp.1);
+                let handle = ret.get_mut(file_name).unwrap();
+                
+                // push the resolved line (definitions replaced with the values)
+                // and keep the line number from the original file
+                handle.content.push(RawLine { line: line.line, content: new_line });
+            }
+        }
+    }
+
+    Err("".into())
+}
+
+/// get the definitons that are declared with '#'
+fn get_definitions(lines: &mut Vec<RawLine>) -> Result<HashMap<String,String>,String>
+{
+    // Holds the definitions in this file
+    // Key: name of definition
+    // Value: Value of the definition
+    let mut defines =  HashMap::new();
+    let mut ii = 0usize;
+
+    while ii<lines.len()
+    {
+        if let Some(matches) = RE_GET_DEFINITION.captures(&lines[ii].content)
+        {
+            if let (Some(def_name),Some(value)) = 
+                (matches.get(1), matches.get(2))
+            {
+                let def_name = def_name.as_str().to_string();
+                let value = value.as_str().to_string();
+
+                if let Some(_) = defines.insert(def_name.clone(), value)
+                {
+                    return Err(format!("double definition of ->{}<-",def_name))
+                }
+            }
+            else 
+            {
+                return Err(format!("could not parse ->{}<- as definition. second definition in line: {}",lines[ii].content,ii))    
+            }
+            lines.remove(ii);
+        }
+        else 
+        {
+            ii +=1;
+        }   
+    }
+
+    Ok(defines)
+}
+
 fn open_file(file_path: &str, path: &str) -> Result<String,String>
 {
     let mut ret = String::new();
@@ -227,5 +378,4 @@ mod tests
         let test1_exp = ["b","c"];
         let test1_vis = ["a"];
     }
-
 }

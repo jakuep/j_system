@@ -1,9 +1,12 @@
-use crate::exec::MachineState;
+use crate::machine::MachineState;
 use crate::deserialization::{self, deserialize_asm};
 
 use j_system_definition::register::Register;
+use j_system_definition::instructions::InstructionEnum;
+use j_system_definition::instructions::Param;
+use j_system_definition::instructions::ParamType;
 
-use std::collections::HashSet;
+use std::collections::{HashSet,HashMap};
 use std::io::{self, Write};
 
 const ASM_DISPLAY_SIZE:u64 = 4;
@@ -23,7 +26,9 @@ pub struct DebugInformation
     /// Contains all pointers that hava a breakpoint (and symbols?)
     pub debug_mode: Option<HashSet<u64>>,
 
-    pub symbols: Option<Vec<String>>,
+    /// contains the labels with the label name(s)
+    /// multiple lables can refer to the same address
+    pub symbols: Option<HashMap<u64,Vec<String>>>,
     
     /// is `None` when the machine is not stepping in the debugger.
     /// is `Some(<val>)` when the debugger is stepping val-amount of
@@ -42,6 +47,7 @@ pub trait MachineDebug
     fn get_regs(&mut self);
     fn peek_stack(&mut self);
     fn peek_instructions(&mut self);
+    fn read_mem(&mut self, mem: u64);
 
     /// returns true if `PC` points to a adress that has a breakpoint
     fn check_breakpoint(&mut self) -> bool;
@@ -56,6 +62,20 @@ impl MachineDebug for MachineState
     fn check_breakpoint(&mut self) -> bool
     {
         self.debug.debug_mode.as_ref().unwrap().contains(&self.reg_state.read(Register::pc))
+    }
+
+    fn read_mem(&mut self, ptr:u64) 
+    {
+        let s;
+        if let Ok(val) = self.mem_state.read(ptr)
+        {
+            s = format!("{}\n",val);
+        }
+        else 
+        {
+            s = format!("could not read address: {}\n", ptr);
+        }
+        self.machine_information.push_str(s)
     }
 
     /// displays the breakpoint CLI when a breakpoint is set for this adress
@@ -113,7 +133,7 @@ impl MachineDebug for MachineState
                 match command
                 {
                     DebugCommand::PrintRegisters    => {},
-                    DebugCommand::MemRead(ptr)      => self.machine_information.push_str(format!("{}\n", self.mem_state.read(ptr).unwrap())),
+                    DebugCommand::MemRead(ptr)      => self.read_mem(ptr),
                     DebugCommand::PrintState        => self.print_state(),
                     DebugCommand::PrintCurrentAsm   => self.print_current_asm(),
                     DebugCommand::Exit              => return ContinueAfterDebug::Quit,
@@ -180,27 +200,69 @@ impl MachineDebug for MachineState
         
         // no \n
         self.machine_information.push_str("->".into());
-
+        let mut found_next_instriction = false;
         for _ in 0..=ASM_DISPLAY_SIZE
         {
             if let Some((asm,new_addr)) = deserialize_asm(&self.mem_state, addr)
             {
-                self.machine_information.push_str(format!("\t{}\t{}",addr, &asm.as_string()));
+                let mut symbols_str:String = "".into();
+                // add symbols if it is a call instruction or a jump instruction
+                match asm.instruction
+                {
+                    InstructionEnum::je   |
+                    InstructionEnum::jeg  |  
+                    InstructionEnum::jel  |  
+                    InstructionEnum::jg   | 
+                    InstructionEnum::jl   |
+                    InstructionEnum::jmp  |
+                    InstructionEnum::call 
+                        => {
+                            if let Some(map) =  &self.debug.symbols
+                            {
+                                // get the address that will be jumped to/ called
+                                let jmp_parm = asm.get_param1().unwrap();
+                                
+                                // only usefull when jump/call point is a constant
+                                if let Param::Constant(jmp_addr) = jmp_parm 
+                                {
+                                    if let Some(symbols) = map.get(&jmp_addr) 
+                                    {
+                                        symbols_str.push_str("; ");
+                                        for symbol in symbols
+                                        {
+                                            symbols_str.push_str(&(symbol.to_owned() + " "));
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                    
+                    _ => {}
+                }
+                
+                self.machine_information.push_str(format!("\t{}\t{}\t{}\n",addr, &asm.as_string(),symbols_str));
                 addr = new_addr;
+                found_next_instriction = true;
             }
         }
+
+        if !found_next_instriction
+        {
+            self.machine_information.push_str(format!("can not fetch next instruction from: {}\t{:#?}\n",addr,self.mem_state.read(addr)))
+        } 
     }
 
     /// peek at top of stack
     fn peek_stack(&mut self)
     {
         self.machine_information.push_str("Stack:\n".into());
+        let tos = self.reg_state.read(Register::tos);
+        let stack_size = self.mem_state.get_mem_size() -tos;  // use highest adress for this
 
-        let stack_size = self.mem_state.get_mem_size()-1 - self.reg_state.read(Register::tos); // use highest adress for this
-
-        if stack_size==0
+        if tos==0 || stack_size==0 
         {
             self.machine_information.push_str("Stack is Empty\n".into());
+            return;
         }
 
         let display_size = if STACK_DISPLAY_SIZE> stack_size {stack_size} else {STACK_DISPLAY_SIZE};
@@ -214,7 +276,7 @@ impl MachineDebug for MachineState
             }
 
             // TODO: -1 until tos fix
-            let addr = self.reg_state.read(Register::tos)+1+ ii;
+            let addr = self.reg_state.read(Register::tos)+ ii;
             // TODO: handle fail 
             let val = self.mem_state.read(addr).unwrap();
 
@@ -259,6 +321,13 @@ fn get_debug_command(command: &str) -> Option<DebugCommand>
         ("c",1)     => Some(DebugCommand::Continue),
         ("dump",1)  => Some(DebugCommand::Dump),
         ("m",2)     => Some(DebugCommand::MemRead(parts[1].parse::<u64>().ok()?)),
+
+        // set/unset breakpoints
+        ("set",2)   => todo!(),
+        ("unset",2) => todo!(),
+
+        // list active breakpoints
+        ("list",2)  => todo!(),
 
         _ => None 
     }

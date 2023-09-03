@@ -39,6 +39,17 @@ def copy_bin_to_interpreter():
     clear_handle.write("")
     clear_handle.close()
 
+    #copy debug info (labels) to interpreter
+        # read the binay output from the assembler
+    dbg_handle = open("./j_system/j_assembler/labels.dbg", "r")
+    dbg = dbg_handle.read()
+    dbg_handle.close()
+
+    # write the binay
+    write_handle = open("./j_system/j_interpreter/labels.dbg", "w")
+    write_handle.write(dbg)
+    write_handle.close()
+
 def run_interpreter(mode):
     if mode == "debug":
         p = subprocess.Popen(["cargo", "run","--release", "--", "-d"], cwd="./j_system/j_interpreter/",stderr=subprocess.DEVNULL)

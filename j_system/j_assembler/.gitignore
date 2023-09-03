@@ -3,3 +3,4 @@
 in.asm
 *.bin
 debug.txt
+*.dbg
