@@ -4,6 +4,7 @@ _rom
 
 _code
     .start:
+
     mov a,0
     push 12
     call .getuserinput
@@ -13,10 +14,12 @@ _code
 
 
 .getuserinput:
+
     ; inputbuffer size
     push 10
     ; allocate buffer
     call .STDmalloc
+
 
 
 
@@ -84,6 +87,15 @@ _code
     ret 1
 
 
+
+    call .STDPrintF
+    
+    call .STDend
+
+
+    
+    
+
 .modulo:
     .div:
     mov b,[tos+1]
@@ -96,6 +108,12 @@ _code
     sub a,b
     jmp .divLoop
     .divEnd:
+
     ; move remaining value to f
     mov f,a
     ret 2
+
+    ; move remaining value to f 
+    mov f,a
+    ret 2
+

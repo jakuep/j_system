@@ -425,7 +425,7 @@ fn call(&mut self, param1: Option<Param>, param2: Option<Param>) -> InstructionR
         return InstructionReturn::Err("call only needs 1 parameter".to_string());
     }
 
-    //TODO: save registers?, stackframe?
+    // TODO: save registers?, stackframe?
     
     // save return adress
     self.push_stack(self.next_ptr).unwrap();
