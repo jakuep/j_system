@@ -37,14 +37,15 @@ _code
     mov b,0
     add b,f
     add b,c
+    ; check null termintion
     cmp [b],0
     je .endloopinput
     ; continue if not finished
-    ; get char into register d
+    ; move char into register d
     mov d,[b]
     
     ; test if the char is ascii
-    ; lover boundary
+    ; lower boundary
     cmp 48,d
     jg .errinput
     ; upper boundary
@@ -56,7 +57,7 @@ _code
     ; get numeric-value form ascii char
     sub d,48
     
-    shl d,c 
+    shl d,c
 
 
 
@@ -65,6 +66,23 @@ _code
     push f
     call .STDfree
     ret 0
+
+
+.mulBy10:
+    mov a,[tos+1]
+    mov f,0
+    add f,a
+    add f,a
+    add f,a
+    add f,a
+    add f,a
+    add f,a
+    add f,a
+    add f,a
+    add f,a
+    add f,a
+    ret 1
+
 
 .modulo:
     .div:
