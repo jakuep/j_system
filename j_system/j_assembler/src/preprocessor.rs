@@ -39,7 +39,7 @@ pub enum PreprocessorErros
     InvalidLabelName,
 }
 
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub struct RawLine
 {
     /// the linenumber of the original input file.
@@ -87,6 +87,7 @@ pub struct SourceFileRun1
     pub visable_exports: HashMap<Export,String>
 }
 
+#[derive(Debug)]
 /// holds the source file with its label exports and content
 pub struct SourceFileRun2
 {
@@ -102,16 +103,32 @@ pub struct SourceFileRun2
     pub visable_exports: HashMap<String,String>
 }
 
-pub fn preprocess(root: &str) -> Result<Vec<SourceFileRun2>, String>
+pub fn preprocess(root: &str) -> Result<HashMap<String,SourceFileRun2>, String>
 {
     // first run of the preprocessor
     let mut files = HashMap::new();
-    get_file_includes(&mut files, root, "")?;
+
+    let path= Path::new(root);
+    
+    if !path.exists()
+    {
+        panic!("could not find path");
+    }
+    
+    let root_file = path.file_name().unwrap().to_str().unwrap();
+    
+    let root_path = path.parent().unwrap().to_path_buf();
+    let root_path = root_path.to_str().unwrap();
+
+
+    get_file_includes(&mut files, root_file, root_path)?;
+
+    print!("{:#?}\n",files);
 
     // resolve defines
+    let files_run2 = resolve_definitions(files);
 
-
-    Ok(vec![])
+    files_run2
 }
 
 pub fn get_file_includes(already_included: &mut HashMap<String, SourceFileRun1>, current_file: &str, path: &str) -> Result<(),String>
@@ -133,11 +150,12 @@ pub fn get_file_includes(already_included: &mut HashMap<String, SourceFileRun1>,
     already_included.insert(current_file.into(), 
             SourceFileRun1{content: lines, exports, flags, definitions, visable_exports: HashMap::new()});
 
-    let mut vis_labels = HashMap::new();
-    // perform all includes actions for the files that included by this file
+    let mut vis_exports = HashMap::new();
+    
+    // perform all includes actions for the files that are included by this file
     for inlc in includes
     {
-        // prevent that exported labels by self appear in vis_labels of self
+        // prevent that exported labels/defines by self appear in vis_exports of self
         if inlc == current_file
         {continue}
         get_file_includes(already_included, &inlc, &path)?;
@@ -145,20 +163,21 @@ pub fn get_file_includes(already_included: &mut HashMap<String, SourceFileRun1>,
         // since the file just got included or was included before,
         // we can just unwrap
         let exports = already_included.get(&inlc).unwrap().exports.clone();
-        for label in exports
+        for export in exports
         {  
-            // if the label is already defined the Hashmap returns the filename(path?)
+            // if the label/define is already defined the Hashmap returns the filename(path?)
             // of the other include
-            if let Some(other_file) = vis_labels.insert(label.clone(), inlc.clone())
+            if let Some(other_file) = vis_exports.insert(export.clone(), inlc.clone())
             {
-                return Err(format!("\ndouble include of label {:#?} in {}. Label is exported in {} and {}",
-                    label, current_file, other_file, inlc))
+                return Err(format!("\ndouble include of label/define {:#?} in {}. Label/Define is exported in {} and {}",
+                    export, current_file, other_file, inlc))
             }
         }
         // TODO: path in file is relative to root path
     } 
+
     // insert visable labels of current file
-    already_included.get_mut(current_file).unwrap().visable_exports = vis_labels;
+    already_included.get_mut(current_file).unwrap().visable_exports = vis_exports;
     Ok(())
 }
 
@@ -183,12 +202,14 @@ fn get_exports(lines: &mut Vec<RawLine>) -> Result<HashSet<Export>,String>
                     return Err("empty export statement".into());
                 }
 
+                print!("exp: ->{}<-\n",exp);
                 // decide if it is a definition or a label
                 let exp_type = if exp.len()>1 && exp.chars().next().unwrap() == '$'
                 {
                     // remove the '$'
                     exp = &exp[1..];
                     ExportType::Define
+                    
                 }
                 else
                 {
@@ -274,29 +295,74 @@ fn resolve_definitions(input: HashMap<String,SourceFileRun1>) -> Result<HashMap<
     
     for (file_name, content) in &input
     {
+
+        
+        let mut defines = HashMap::new();
+
+        // go through all visable (extern) exports and determine their origin (filename of the definition)
+        for (vis_export_key, vis_export_origin) in &content.visable_exports 
+        {   
+            // only resolve defines. Labels/jump-adresses will be resolbed by the linker
+            if vis_export_key.teip == ExportType::Define
+            {
+                
+                // vis_export_origin holds the filename (TODO: path?) of the definition
+                let referenced_file = input.get(vis_export_origin).ok_or(
+                        format!("could not resolve defines in '{}' because '{}' was not found",file_name,vis_export_origin))?;
+
+                // get the define we are looking for
+                let extern_define_value = referenced_file.definitions.get(&vis_export_key.name).ok_or(
+                    format!("could not find definition of '{}' in '{}' but was required by {}",vis_export_key.name,vis_export_origin,file_name))?;
+            
+                // push to all defines 
+                defines.insert(&vis_export_key.name, extern_define_value);
+            }
+        }
+
+        // fuse both extern and local definitions
+        // do not use `extend()` to prevent double definitions
+        for local_define in &content.definitions
+        {
+            if let Some(double_define) = defines.insert(local_define.0, local_define.1)
+            {
+                return Err(format!("double define in {}: {}",file_name,double_define));
+            }
+        }
+
+        let mut lines = vec![];
+
+        for line in &content.content
+        {
+            let mut line_new = line.clone();
+            
+            // maybe multiple defines in one line
+            while let Some(define_match) = RE_DEF_USE.find(&line_new.content)
+            {
+                let mut define_use = define_match.as_str().chars();
+                // remove first char: '$'
+                define_use.next();
+                let define_use = define_use.as_str();
+
+
+                // search for definion
+                let val = defines.get(&define_use.to_string()).ok_or(format!("could not find definition for '{}' in file '{}' in line {}",define_use,file_name,line.line))?;
+                
+                line_new.content = line_new.content.replace(&("$".to_string() + define_use), val);
+            }
+
+            lines.push(line_new);
+        }
+
         let _ = ret.insert(file_name.clone(),SourceFileRun2 { 
-            content: vec![], 
+            content: lines, 
             //map to only keep the names????
             exports: content.exports.iter().map(|x| x.name.clone()).collect(), 
             visable_exports: content.visable_exports.iter().map(|(x,y)| (x.name.clone(),y.clone())).collect() 
         });
-        
-        for exp in &content.visable_exports 
-        {   
-            for line in &content.content
-            {
-                // replace the content of one line with the definition
-                let new_line = line.content.replace(&exp.0.name,exp.1);
-                let handle = ret.get_mut(file_name).unwrap();
-                
-                // push the resolved line (definitions replaced with the values)
-                // and keep the line number from the original file
-                handle.content.push(RawLine { line: line.line, content: new_line });
-            }
-        }
+
     }
 
-    Err("".into())
+    Ok(ret)
 }
 
 /// get the definitons that are declared with '#'
@@ -341,7 +407,8 @@ fn get_definitions(lines: &mut Vec<RawLine>) -> Result<HashMap<String,String>,St
 fn open_file(file_path: &str, path: &str) -> Result<String,String>
 {
     let mut ret = String::new();
-    let p:String = path.to_string() + file_path;
+    let p:String = path.to_string() +"/" + file_path;
+    print!("try to open: {}\n",p);
     File::open(&p).expect("").read_to_string(&mut ret).expect("");
     Ok(ret)
 }

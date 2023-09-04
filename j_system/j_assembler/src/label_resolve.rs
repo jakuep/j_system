@@ -119,7 +119,6 @@ fn calc_sersed_code_positions(code: &Vec<AsmLineLabel>, start_of_code_section: u
     instruction_position
 }
 
-
 fn instruction_size(ins: ParamOrLabel) -> u64
 {
     match ins

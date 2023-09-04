@@ -12,14 +12,31 @@ use crate::file_save_load::*;
 use crate::assembler::*;
 use crate::preprocessor::*;
 
-
-
+use std::process;
 use std::fs;
 
 fn main() {
     let main_file_name = "./in.asm";
     
     let file = load_file(main_file_name);
+
+    let root = "./test/test1/test1.asm";
+
+
+    match preprocess(root) {
+        Err(s) => print!("err: {}\n",s),
+        Ok(output) => 
+        {
+            for (file_name, content) in output
+            {
+                print!("file name: {}\n\n",file_name);
+                print!("{:#?}\n",content);
+                print!("---------------------------\n\n");
+            }
+        }
+    }
+
+    process::exit(0);
     
     let fin = assemble_into_u64_vec(file, main_file_name.to_string());
     
