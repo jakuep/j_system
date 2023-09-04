@@ -12,6 +12,24 @@ pub struct AsmLine {
 
 impl AsmLine
 {
+    pub fn size(&self) -> u8
+    {
+        // start with instruction size 
+        let mut size = 1;
+        
+        // add the size of addtional parameters that need 64bit each
+        if let Some(param1) = self.param1
+        {
+            size += param1.size();
+        }
+        if let Some(param2) = self.param2
+        {
+            size += param2.size();
+        }
+
+        size 
+    }
+
     pub fn as_string(&self) -> String
     {
         //TODO: add original line
@@ -151,6 +169,19 @@ pub enum Param{
     MemPtr(u64),
     MemPtrOffset(Register,i64), // maybe i128? 
     Constant(u64),
+}
+
+impl Param {
+    pub fn size(&self) -> u8
+    {
+        match self
+        {
+            Param::Register(_) => 0,
+            Param::MemPtr(_)  =>  1,
+            Param::MemPtrOffset(_,_) => 1,
+            Param::Constant(_) => 1,
+        }
+    }
 }
 
 pub enum ParamType{
