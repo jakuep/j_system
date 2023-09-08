@@ -159,8 +159,6 @@ fn reg_as_string(reg: Register) -> String
     }.to_string()
 }
 
-// TODO:    rename since pointers can index all of memory
-//          and not just the Stack
 #[derive(PartialEq)]
 #[derive(Debug)]
 #[derive(Copy,Clone)]

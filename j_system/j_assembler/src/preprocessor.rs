@@ -44,8 +44,8 @@ pub struct RawLine
 {
     /// the linenumber of the original input file.
     /// is intendet for debug hints.
-    line: u64,
-    content: String,
+    pub line: u64,
+    pub content: String,
 }
 
 #[derive(Debug,Eq,PartialEq,Clone,Hash)]
@@ -79,7 +79,7 @@ pub struct SourceFileRun1
 
     /// Flags
     /// contains the flags that were set for this file
-    pub flags: Vec<(String,Option<String>)>, 
+    pub flags: HashMap<String,Option<String>>, 
 
     /// Visable Exports in self.content
     /// Key: name of the export and their type
@@ -96,6 +96,10 @@ pub struct SourceFileRun2
     /// can both reference jump labels and rom data.
     /// contains the labels that where exported
     pub exports: HashSet<String>,
+
+    /// Flags
+    /// contains the flags that were set for this file
+    pub flags: HashMap<String,Option<String>>, 
 
     /// Visable Labels in self.content
     /// Key: name of the exported label
@@ -209,7 +213,6 @@ fn get_exports(lines: &mut Vec<RawLine>) -> Result<HashSet<Export>,String>
                     // remove the '$'
                     exp = &exp[1..];
                     ExportType::Define
-                    
                 }
                 else
                 {
@@ -262,9 +265,9 @@ fn resolve_includes(lines: &mut Vec<RawLine>) -> Result<Vec<String>,String>
     Ok(includes)
 }
 
-fn get_flags(lines: &mut Vec<RawLine>) -> Result<Vec<(String,Option<String>)>,String>
+fn get_flags(lines: &mut Vec<RawLine>) -> Result<HashMap<String,Option<String>>,String>
 {
-    let mut flags = vec![];
+    let mut flags = HashMap::new();
     let mut ii = 0usize;
 
     while ii<lines.len()
@@ -278,7 +281,13 @@ fn get_flags(lines: &mut Vec<RawLine>) -> Result<Vec<(String,Option<String>)>,St
                 else
                 {None};
 
-                flags.push((flag_name.as_str().to_string(),value));
+                let flag_name = flag_name.as_str().to_string();
+                
+                // avoid double definition of a flag
+                if let Some(_) = flags.insert(flag_name.clone(), value)
+                {
+                    return Err(format!("double definition of flag '{}' in line {}",flag_name,&lines[ii].line));
+                } 
             }
         }
         else 
@@ -294,9 +303,7 @@ fn resolve_definitions(input: HashMap<String,SourceFileRun1>) -> Result<HashMap<
     let mut ret:HashMap<String,SourceFileRun2> = HashMap::new();
     
     for (file_name, content) in &input
-    {
-
-        
+    {        
         let mut defines = HashMap::new();
 
         // go through all visable (extern) exports and determine their origin (filename of the definition)
@@ -305,7 +312,6 @@ fn resolve_definitions(input: HashMap<String,SourceFileRun1>) -> Result<HashMap<
             // only resolve defines. Labels/jump-adresses will be resolbed by the linker
             if vis_export_key.teip == ExportType::Define
             {
-                
                 // vis_export_origin holds the filename (TODO: path?) of the definition
                 let referenced_file = input.get(vis_export_origin).ok_or(
                         format!("could not resolve defines in '{}' because '{}' was not found",file_name,vis_export_origin))?;
@@ -343,7 +349,6 @@ fn resolve_definitions(input: HashMap<String,SourceFileRun1>) -> Result<HashMap<
                 define_use.next();
                 let define_use = define_use.as_str();
 
-
                 // search for definion
                 let val = defines.get(&define_use.to_string()).ok_or(format!("could not find definition for '{}' in file '{}' in line {}",define_use,file_name,line.line))?;
                 
@@ -354,12 +359,12 @@ fn resolve_definitions(input: HashMap<String,SourceFileRun1>) -> Result<HashMap<
         }
 
         let _ = ret.insert(file_name.clone(),SourceFileRun2 { 
-            content: lines, 
+            content: lines,
+            flags: content.flags.clone(), 
             //map to only keep the names????
             exports: content.exports.iter().map(|x| x.name.clone()).collect(), 
             visable_exports: content.visable_exports.iter().map(|(x,y)| (x.name.clone(),y.clone())).collect() 
         });
-
     }
 
     Ok(ret)
