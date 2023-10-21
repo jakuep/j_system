@@ -97,6 +97,7 @@ impl UnlinkedInstruction {
         // 1 is for the instruction itself
         1+Self::param_size(&self.param1)+Self::param_size(&self.param2)
     }
+    
     fn param_size(param: &Option<UnlinkedParameter>) -> u8
     {
         if let Some(p) = param

@@ -5,6 +5,7 @@ TODO:
 - stack should start at highest possible adress of the internal mem chunk, not at u64::MAX!
 - define in all places where constants can appear (maybe??)
 - use bos register
+- should it be possible to deref a constant? e.g.:  mov a, [42]
 
 
 DONE:
