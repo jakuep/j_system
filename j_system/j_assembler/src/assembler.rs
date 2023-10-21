@@ -1,6 +1,6 @@
 use crate::label_resolve::*;
 use crate::serialization::*;
-use crate::decode_instructons::*;
+//use crate::decode_instructons::*;
 use crate::debug::*;
 use crate::preprocessor::*;
 
@@ -61,20 +61,47 @@ lazy_static!
     static ref RE_LABEL_DEREF_OFFSET:   Regex = Regex::new(r"^\s*\[\s*\.([a-zA-Z0-9]+)\s*(\+|\-)\s*([0-9]+)\s*\]\s*$").unwrap();
 }
 
+pub struct RomData
+{}
+
+/// distinguish between Jumps and Rom labels beacuse rom and code section will be split
+pub enum LabelType
+{
+    JumpLabel(u64),
+    Rom(u64),
+}
+
 pub struct AssembledFile
 {
     /// contains the filename (and path?) of the original input file
-    name: String,
-    instructions: Vec<UnlinkedInstruction>
+    pub name: String,
+    pub instructions: Vec<UnlinkedInstruction>,
+    pub rom: Vec<RomData>,
+    
+    /// contains the offset in the file that the label points to.
+    pub linker_info: HashMap<String,LabelType>,
 }
 
 pub struct UnlinkedInstruction
 {
     /// the line number in the original input file
-    line: u64,
-    inst: instructions::InstructionEnum,
-    param1: Option<UnlinkedParameter>,
-    param2: Option<UnlinkedParameter>,
+    pub line: u64,
+    pub inst: instructions::InstructionEnum,
+    pub param1: Option<UnlinkedParameter>,
+    pub param2: Option<UnlinkedParameter>,
+}
+
+impl UnlinkedInstruction {
+    pub fn size(&self) -> u8
+    {
+        // 1 is for the instruction itself
+        1+Self::param_size(&self.param1)+Self::param_size(&self.param2)
+    }
+    fn param_size(param: &Option<UnlinkedParameter>) -> u8
+    {
+        if let Some(p) = param
+        {p.size()}else{0}
+    }
 }
 
 pub enum UnlinkedParameter
@@ -82,9 +109,55 @@ pub enum UnlinkedParameter
     Determined(instructions::Param),
 
     /// contains the name (1) of the label and the origin file-name (2) that has the jump label / data label.
-    LinkerReslovedLabel(String,String),
+    LinkerReslovedLabel(LinkerReslovedLabel),
 }
 
+impl UnlinkedParameter {
+    pub fn size(&self) -> u8
+    {
+        match self
+        {
+            Self::Determined(d) => match d 
+            {
+                instructions::Param::Constant(_) => 1,
+                instructions::Param::MemPtr(_) => 1,
+                instructions::Param::MemPtrOffset(_,_ ) => 1,
+                instructions::Param::Register(_) => 0,
+            }  
+            Self::LinkerReslovedLabel(l) => match l.teip
+            {
+                LabelUse::Deref => 1,
+                
+                // deref offset will be added to the label value at compile time. 
+                // that results in only one value to store
+                LabelUse::DerefOffset(_) => 1,
+                LabelUse::Raw => 1, 
+            }
+        }
+    }
+}
+
+pub struct LinkerReslovedLabel
+{
+    label_name: String,
+    label_origin: String,
+    teip: LabelUse,
+}
+
+#[derive(Copy,Clone,PartialEq,Debug)]
+pub enum LabelUse
+{
+    /// eg: jmp .jumplabel
+    Raw,
+    
+    /// eg: mov a, [.data]
+    Deref,
+
+    /// eg: mov a, [.data+8]
+    DerefOffset(i64),
+}
+
+/* 
 pub fn assemble_into_u64_vec(input: Vec<String>, main_file_name: String) -> Vec<u64>
 {   
     let preprocessed = preprocess_input(input, main_file_name);
@@ -120,6 +193,8 @@ pub fn assemble_into_u64_vec(input: Vec<String>, main_file_name: String) -> Vec<
     binary
 }
 
+*/
+
 fn assemble_file(mut input_file: SourceFileRun2,file_name: String) -> Result<AssembledFile,String>
 {
     let mut ii = 0;
@@ -128,7 +203,7 @@ fn assemble_file(mut input_file: SourceFileRun2,file_name: String) -> Result<Ass
     while ii < input_file.content.len()
     {
         // remove comments
-        // search for ';' as begin of comment
+        // search for the first semicolon as begin of comment
         if let Some(index) = input_file.content[ii].content.find(';')
         {
             // revome everthing behind and including the ';'
@@ -148,9 +223,13 @@ fn assemble_file(mut input_file: SourceFileRun2,file_name: String) -> Result<Ass
 
     let sections = split_sections(&input_file, &file_name)?;
 
-    // parse instruction and parameters
+    // start parsing instructions and parameters
 
-    Ok(AssembledFile { name: file_name, instructions: vec![]})
+
+
+    // parse rom section
+
+    Ok(AssembledFile { name: file_name, instructions: vec![],rom: vec![], linker_info: HashMap::new()})
 
 }
 
@@ -180,5 +259,41 @@ fn split_sections(input_file: &SourceFileRun2, file_name: &str) -> Result<AsmSec
         _ =>{},
     }
 
-    Err("could not parse code/rom section...".into())
+    // after the preprocessor and the removing of empty lines,
+    // the first line should be "_rom" or "_code"
+    
+    // search for rom
+    // TODO: make it so that _code and _rom can have instructions in the same line and do NOT need a newline
+    match input_file.content[0].content.trim()
+    {
+        "_rom" => {
+            // search for "_code"
+            for (index,line)in input_file.content.iter().enumerate()
+            {
+                if line.content.trim() == "_code"
+                {
+                    return Ok(AsmSections { 
+                        code: Some(input_file.content[1..index].to_vec()), 
+                        rom:  Some(input_file.content[index+1..].to_vec())});
+                }
+            }
+            return Err(format!("read _rom but could not find _code section in file: '{}'",file_name));
+        },
+        "_code" =>{
+            // search for "_rom"
+            for (index,line)in input_file.content.iter().enumerate()
+            {
+                if line.content.trim() == "_rom"
+                {
+                    return Ok(AsmSections { 
+                        rom: Some(input_file.content[1..index].to_vec()), 
+                        code:  Some(input_file.content[index+1..].to_vec())});
+                }
+            }
+            return Err(format!("read _code but could not find _rom section in file: '{}'",file_name));
+        },
+        line => return Err(format!("could not partse: {} in '{}' line {}",line,file_name,input_file.content[0].line))
+    }
 }
+
+

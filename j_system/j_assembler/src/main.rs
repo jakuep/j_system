@@ -7,6 +7,8 @@ mod assembler;
 mod file_save_load;
 mod debug;
 mod preprocessor;
+mod linker;
+mod code_parse;
 
 use crate::file_save_load::*;
 use crate::assembler::*;
@@ -38,16 +40,16 @@ fn main() {
 
     process::exit(0);
     
-    let fin = assemble_into_u64_vec(file, main_file_name.to_string());
+    //let fin = assemble_into_u64_vec(file, main_file_name.to_string());
     
-    let mut result = String::new(); 
+    //let mut result = String::new(); 
 
-    for x in fin
-    {
-        result.push_str(&format!("{:0>20}\n",x));
-    }
+    //for x in fin
+    //{
+    //    result.push_str(&format!("{:0>20}\n",x));
+    //}
     
-    fs::write("./out.bin", &result).unwrap();
+    //fs::write("./out.bin", &result).unwrap();
     print!("Ok\n");
 
    

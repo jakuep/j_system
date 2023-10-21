@@ -182,7 +182,7 @@ fn string_to_vec_u64(s: String) -> Vec<u64>
     } 
     else
     {
-        panic!("could not parse {} as a string", s)
+        panic!("could not parse ->{}<- as a string", s)
     }
 }
 
@@ -198,7 +198,7 @@ fn number_to_vec_u64(s: String) -> Vec<u64>
     }
     else
     {
-        panic!("could not parse {} as a number", s);
+        panic!("could not parse ->{}<- as a number", s);
     }
 }
 
