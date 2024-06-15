@@ -97,7 +97,7 @@ impl UnlinkedInstruction {
         // 1 is for the instruction itself
         1+Self::param_size(&self.param1)+Self::param_size(&self.param2)
     }
-    
+
     fn param_size(param: &Option<UnlinkedParameter>) -> u8
     {
         if let Some(p) = param
@@ -110,7 +110,7 @@ pub enum UnlinkedParameter
     Determined(instructions::Param),
 
     /// contains the name (1) of the label and the origin file-name (2) that has the jump label / data label.
-    LinkerReslovedLabel(LinkerReslovedLabel),
+    LinkerReslovedLabel(LinkerResolvedLabel),
 }
 
 impl UnlinkedParameter {
@@ -138,11 +138,10 @@ impl UnlinkedParameter {
     }
 }
 
-pub struct LinkerReslovedLabel
+pub struct LinkerResolvedLabel
 {
-    label_name: String,
-    label_origin: String,
-    teip: LabelUse,
+    pub label_name: String,
+    pub teip: LabelUse,
 }
 
 #[derive(Copy,Clone,PartialEq,Debug)]
@@ -196,7 +195,7 @@ pub fn assemble_into_u64_vec(input: Vec<String>, main_file_name: String) -> Vec<
 
 */
 
-fn assemble_file(mut input_file: SourceFileRun2,file_name: String) -> Result<AssembledFile,String>
+pub fn assemble_file(mut input_file: SourceFileRun2,file_name: String) -> Result<AssembledFile,String>
 {
     let mut ii = 0;
     // remove comments and empty lines
@@ -244,11 +243,11 @@ struct AsmSections
 /// it is allowed to not have both if the correct flags are set
 fn split_sections(input_file: &SourceFileRun2, file_name: &str) -> Result<AsmSections,String>
 {
-    match (input_file.flags.contains_key("romonly"),
-        input_file.flags.contains_key("codeonly")) 
+    match (input_file.flags.contains_key("nocode"),
+        input_file.flags.contains_key("norom")) 
     {
-        // only one of those flags should be set
-        (true,true) => return Err(format!("file '{}' contains both the 'codeonly' and 'romonly' flag",file_name)),
+        // file only contains definitions, flags, ... , but no code or rom
+        (true,true) => return Ok(AsmSections { code: None, rom: None }),
         
         // treat everything as code
         (false,true) => return Ok(AsmSections { code: Some(input_file.content.clone()), rom: None}),
@@ -258,6 +257,11 @@ fn split_sections(input_file: &SourceFileRun2, file_name: &str) -> Result<AsmSec
         
         // continue with parsing
         _ =>{},
+    }
+
+    if input_file.content.len() == 0
+    {
+        return Err(format!("could not find rom/code section in file '{}'.\nHint: if you wish not to use code or rom sections in this file, set the 'nocode'/'norom' flag(s)", file_name));
     }
 
     // after the preprocessor and the removing of empty lines,

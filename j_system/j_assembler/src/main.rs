@@ -24,8 +24,8 @@ fn main() {
 
     let root = "./test/test1/test1.asm";
 
-
-    match preprocess(root) {
+    let preprocess = preprocess(root);
+    match &preprocess {
         Err(s) => print!("err: {}\n",s),
         Ok(output) => 
         {
@@ -33,13 +33,27 @@ fn main() {
             {
                 print!("file name: {}\n\n",file_name);
                 print!("{:#?}\n",content);
-                print!("---------------------------\n\n");
+                //print!("---------------------------\n\n");
             }
         }
     }
+    print!("\n\n-----------------END PREPROCESS-----------------\n\n");
+    if preprocess.is_err(){
+        process::exit(0);
+    }
+    let preprocess = preprocess.unwrap();
 
-    process::exit(0);
-    
+    let mut assembled_files = vec![];
+    for (file_name,file) in preprocess
+    {
+        match assembler::assemble_file(file, file_name) {
+            Ok(assembled_file) => assembled_files.push(assembled_file),
+            Err(e) => {print!("{}\n",e);process::exit(0);}
+        }
+        
+    }
+
+
     //let fin = assemble_into_u64_vec(file, main_file_name.to_string());
     
     //let mut result = String::new(); 

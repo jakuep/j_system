@@ -1,4 +1,4 @@
-use crate::assembler::{LabelType, UnlinkedInstruction,UnlinkedParameter};
+use crate::assembler::{LabelType, UnlinkedInstruction, UnlinkedParameter, LinkerResolvedLabel, LabelUse,};
 use crate::preprocessor::{RawLine};
 use crate::type_cov_parse;
 
@@ -92,7 +92,7 @@ fn parse_instruction(parts: Vec<&str>,line: u64) -> Result<UnlinkedInstruction,S
         if let Some(split_point) = fused.find(',')
         {
             let (first,second) = fused.split_at(split_point);
-            parse_parameter(first);
+            param1 = Some(parse_parameter(first)?);
 
             if !second.is_empty()
             {
@@ -106,17 +106,6 @@ fn parse_instruction(parts: Vec<&str>,line: u64) -> Result<UnlinkedInstruction,S
 
 fn parse_parameter(mut param: &str) -> Result<UnlinkedParameter,String>
 {
-    // if the parameter string only conatis a number there is nothing more to do
-    if let Ok(constant) = param.parse::<i64>()
-    {
-        return Ok(UnlinkedParameter::Determined(Param::Constant(type_cov_parse::i64_to_u64_bitwise(constant))));
-    }
-
-    // jump-/datalabel -> will be resolved by the linker
-    if param.starts_with('.')
-    {}
-    
-    
     // check for deref
     let deref = param.starts_with('[') && param.ends_with(']');
 
@@ -128,11 +117,68 @@ fn parse_parameter(mut param: &str) -> Result<UnlinkedParameter,String>
         chars.next_back();
         param = chars.as_str();
     }
+   
+    // if the parameter string only conatis a number there is nothing more to do
+    if let Ok(constant) = param.parse::<i64>()
+    {
+        if deref
+        {
+            return Err("cannot deref a constant directly. load the constant in a register first and then deref the register".into())
+        }
+        return Ok(UnlinkedParameter::Determined(Param::Constant(type_cov_parse::i64_to_u64_bitwise(constant))));
+    }
 
-    // is number?
+    // jump-/datalabel -> will be resolved by the linker
+    if param.starts_with('.')
+    {
+        let mut chars = param.chars();
+        
+        // remove the dot
+        chars.next();
+
+        // if not alphanumeric or underscore return error
+        if !chars.all(|c| c.is_alphanumeric() || c=='_')
+        {
+            return Err(format!("cannot iterpret ->{}<- as a labelname",chars.collect::<String>()));
+        }
+
+        let label_name = chars.collect::<String>();
+        if deref
+        {
+            return Err("cannot deref a constant directly. load the constant in a register first and then deref the register".into())
+        }
+        return Ok(UnlinkedParameter::LinkerReslovedLabel(LinkerResolvedLabel{label_name, teip: LabelUse::Raw}));
+    }
+
+    // split param to get first part only.
+    // second part could contain offset
+    if let Some(offset_define_point) = param.find(['+','-'])
+    {
+        let (reg,offset) = param.split_at(offset_define_point);
+    }
     
 
+    // check for register
+    if let Some(reg) = match param
+        {
+            "a"     => Some(Register::a),
+            "b"     => Some(Register::b),
+            "c"     => Some(Register::c),
+            "d"     => Some(Register::d),
+            "e"     => Some(Register::e),
+            "f"     => Some(Register::f),
+            "s"     => Some(Register::s),
+            "pc"    => Some(Register::pc),
+            "tos"   => Some(Register::tos),
+            "bos"   => Some(Register::bos),
+            _       => None,
+        }
+    {
 
-
+    }
+    
+ 
+    // is number?
+    
     Err("".into())
 }

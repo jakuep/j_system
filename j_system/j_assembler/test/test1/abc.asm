@@ -3,4 +3,6 @@
 
 #export a,$number
 #define number 42
+#set NoRom
+#set NoCode
 

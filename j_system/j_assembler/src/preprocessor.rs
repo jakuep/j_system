@@ -280,15 +280,18 @@ fn get_flags(lines: &mut Vec<RawLine>) -> Result<HashMap<String,Option<String>>,
                 {Some(value.as_str().to_string())}
                 else
                 {None};
-
                 let flag_name = flag_name.as_str().to_string();
                 
                 // avoid double definition of a flag
-                if let Some(_) = flags.insert(flag_name.clone(), value)
+                if let Some(_) = flags.insert(flag_name.clone().to_lowercase(), value)
                 {
                     return Err(format!("double definition of flag '{}' in line {}",flag_name,&lines[ii].line));
                 } 
             }
+            else {
+                return Err(format!("could not parse flag value '{}' in line {}",lines[ii].content, lines[ii].line));
+            }
+            lines.remove(ii);
         }
         else 
         {
