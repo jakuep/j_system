@@ -44,7 +44,7 @@ pub struct RawLine
 {
     /// the linenumber of the original input file.
     /// is intendet for debug hints.
-    pub line: u64,
+    pub line_number: u64,
     pub content: String,
 }
 
@@ -285,11 +285,11 @@ fn get_flags(lines: &mut Vec<RawLine>) -> Result<HashMap<String,Option<String>>,
                 // avoid double definition of a flag
                 if let Some(_) = flags.insert(flag_name.clone().to_lowercase(), value)
                 {
-                    return Err(format!("double definition of flag '{}' in line {}",flag_name,&lines[ii].line));
+                    return Err(format!("double definition of flag '{}' in line {}",flag_name,&lines[ii].line_number));
                 } 
             }
             else {
-                return Err(format!("could not parse flag value '{}' in line {}",lines[ii].content, lines[ii].line));
+                return Err(format!("could not parse flag value '{}' in line {}",lines[ii].content, lines[ii].line_number));
             }
             lines.remove(ii);
         }
@@ -353,7 +353,7 @@ fn resolve_definitions(input: HashMap<String,SourceFileRun1>) -> Result<HashMap<
                 let define_use = define_use.as_str();
 
                 // search for definion
-                let val = defines.get(&define_use.to_string()).ok_or(format!("could not find definition for '{}' in file '{}' in line {}",define_use,file_name,line.line))?;
+                let val = defines.get(&define_use.to_string()).ok_or(format!("could not find definition for '{}' in file '{}' in line {}",define_use,file_name,line.line_number))?;
                 
                 line_new.content = line_new.content.replace(&("$".to_string() + define_use), val);
             }
@@ -428,7 +428,7 @@ fn into_lines(content: String) -> Vec<RawLine>
 
     for ii in 0..raw_lines.len()
     {
-        lines.push(RawLine{line:(ii+1) as u64, content:raw_lines[ii].into()})
+        lines.push(RawLine{line_number:(ii+1) as u64, content:raw_lines[ii].into()})
     }
 
     lines

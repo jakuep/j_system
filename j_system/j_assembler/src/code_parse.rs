@@ -31,13 +31,13 @@ fn parse_code_section(input: &Vec<RawLine>,file_name: String, linker_info: &mut 
 
             if let Some(doubledef) = linker_info.insert(label_name.clone(), LabelType::JumpLabel(offset_pointer))
             {
-                return Err(format!("double definition of label '{}' in '{}'. second definition in line {}",label_name,file_name,line.line));
+                return Err(format!("double definition of label '{}' in '{}'. second definition in line {}",label_name,file_name,line.line_number));
             }
 
             // the line cloud still contain a instruction after the label definition
             if parts.len() > 1
             {
-                let inst = parse_instruction(parts[1..].to_vec(), line.line)?;
+                let inst = parse_instruction(parts[1..].to_vec(), line.line_number)?;
             }
         }
         else 

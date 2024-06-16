@@ -53,6 +53,14 @@ fn main() {
         
     }
 
+    // print assembler stage
+    for file in assembled_files
+    {
+        print!("{:?}\n", file);
+    }
+
+    print!("\n\n-----------------END ASSEMBLER-----------------\n\n");
+
 
     //let fin = assemble_into_u64_vec(file, main_file_name.to_string());
     
