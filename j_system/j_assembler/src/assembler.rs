@@ -8,6 +8,7 @@ use lazy_static::lazy_static;
 use regex::Regex;
 
 use crate::j_system_definition::instructions;
+use crate::j_system_definition::register;
 use std::collections::HashMap;
 
 // Regex definitions
@@ -351,7 +352,20 @@ fn parse_instructions(
                 }
             }
 
-            "sub" => {}
+            "sub" => {
+                let params = parse_parameters(parameter_part, line.line_number, file_name)?;
+                if params.len() == 2 {
+                    parsed_instructions.push(UnlinkedInstruction {
+                        line: line.line_number,
+                        inst: instructions::InstructionEnum::sub,
+                        param1: Some(params[0].clone()),
+                        param2: Some(params[1].clone()),
+                    });
+                } else {
+                    return Err(format!("instruction 'sub' needs 2 parameters but only {} could be parsed in line {} in file '{}' ",params.len(),line.line_number, file_name));
+                }
+            }
+
             "xor" => {}
             "or" => {}
             "and" => {}
@@ -391,7 +405,49 @@ fn parse_parameters(
     line_number: u64,
     file_name: &str,
 ) -> Result<Vec<UnlinkedParameter>, String> {
-    Err(format!("not implemented!"))
+    let parts: Vec<_> = content.trim().split(',').map(|s| s.trim()).collect();
+
+    // maximum of 2 parametes allowed
+    assert!(parts.len() <= 2);
+    let mut ret = vec![];
+    for param in parts {
+        // check if value is a number
+        if param.chars().all(|c| c.is_ascii_digit()) {
+            let maybe_number = param.parse();
+            if let Ok(number) = maybe_number {
+                ret.push(UnlinkedParameter::Determined(
+                    instructions::Param::Constant(number),
+                ));
+                continue;
+            } else {
+                return Err(format!(
+                    "found all digits but could not parse value form '{}' in line {} in file '{}'",
+                    param, line_number, file_name
+                ));
+            }
+        }
+
+        let char_amount = param.chars().count();
+        if char_amount > 0 && char_amount <= 3 {
+            if let Some(reg) = parse_register(param) {
+                ret.push(UnlinkedParameter::Determined(
+                    instructions::Param::Register(reg),
+                ));
+                continue;
+            } else {
+                return Err(format!(
+                    "could not resovle register value '{}' in line {} in file '{}'",
+                    param, line_number, file_name
+                ));
+            }
+        }
+
+        // [a] , [a+1] , [a-1]  or [42]
+        if param.starts_with('[') && param.ends_with(']') {}
+    }
+
+    Ok(ret)
+    //Err(format!("not implemented!"))
 }
 
 fn parse_rom(
@@ -400,4 +456,22 @@ fn parse_rom(
     file_name: &str,
 ) -> Result<(), String> {
     return Ok(());
+}
+
+fn parse_register(inp: &str) -> Option<register::Register> {
+    match inp {
+        // general registers
+        "a" => Some(register::Register::a),
+        "b" => Some(register::Register::b),
+        "c" => Some(register::Register::c),
+        "d" => Some(register::Register::d),
+        "e" => Some(register::Register::e),
+        "f" => Some(register::Register::f),
+        // special registers
+        "tos" => Some(register::Register::tos),
+        "bos" => Some(register::Register::bos),
+        "pc" => Some(register::Register::pc),
+        "s" => Some(register::Register::s),
+        _ => None,
+    }
 }
