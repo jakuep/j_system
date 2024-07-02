@@ -4,3 +4,4 @@
 
 _code
 add a, $number
+add a, .testlabel

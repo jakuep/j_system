@@ -451,10 +451,7 @@ fn parse_parameters(
                 ret.push(UnlinkedParameter::Determined(
                     instructions::Param::Constant(number),
                 ));
-                j_log(
-                    &format!("decoded instruction: {:?}\n", ret[ret.len() - 1]),
-                    3,
-                );
+                j_log(&format!("decoded parameter: {:?}\n", ret[ret.len() - 1]), 3);
                 continue;
             } else {
                 return Err(format!(
@@ -470,10 +467,7 @@ fn parse_parameters(
                 ret.push(UnlinkedParameter::Determined(
                     instructions::Param::Register(reg),
                 ));
-                j_log(
-                    &format!("decoded instruction: {:?}\n", ret[ret.len() - 1]),
-                    3,
-                );
+                j_log(&format!("decoded parameter: {:?}\n", ret[ret.len() - 1]), 3);
                 continue;
             } else {
                 return Err(format!(
@@ -483,7 +477,28 @@ fn parse_parameters(
             }
         }
 
-        // [.label], [.label+1], [.label-1], [a] , [a+1] , [a-1]  or [42]
+        // check for label without deref
+        if param.starts_with('.') {
+            // remove leading dot
+            let label_name: String = param.chars().skip(1).collect();
+
+            if label_name.chars().all(|c| c.is_alphanumeric() || c == '_') {
+                ret.push(UnlinkedParameter::LinkerReslovedLabel(
+                    LinkerResolvedLabel {
+                        label_name,
+                        teip: LabelUse::Raw,
+                    },
+                ));
+                j_log(&format!("decoded parameter: {:?}\n", ret[ret.len() - 1]), 3);
+            } else {
+                return Err(format!(
+                    "could not parse label name '{}' in line {} in file {}",
+                    label_name, line_number, file_name
+                ));
+            }
+        }
+
+        //  [.label], [.label+1], [.label-1], [a] , [a+1] , [a-1]  or [42]
         if param.starts_with('[') && param.ends_with(']') {
             let mut s = param.chars();
             s.next();
@@ -492,7 +507,9 @@ fn parse_parameters(
             let param_no_bracket = p.trim();
 
             // if it stats with a dot, that means it is a label.
-            if param_no_bracket.starts_with('.') {}
+            if param_no_bracket.starts_with('.') {
+                // check if the label
+            }
         }
     }
 
