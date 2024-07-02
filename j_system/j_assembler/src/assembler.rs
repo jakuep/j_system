@@ -2,6 +2,7 @@ use crate::label_resolve::*;
 use crate::serialization::*;
 //use crate::decode_instructons::*;
 use crate::debug::*;
+use crate::logging::j_log;
 use crate::preprocessor::*;
 
 use lazy_static::lazy_static;
@@ -255,18 +256,50 @@ fn split_sections(input_file: &SourceFileRun2, file_name: &str) -> Result<AsmSec
 
         // treat everything as code
         (false, true) => {
+            // remove empty lines
+            let mut cleaned_content: Vec<_> = input_file
+                .content
+                .iter()
+                .filter(|line| !line.content.chars().all(|c| c.is_whitespace()))
+                .map(|e| e.clone())
+                .collect();
+            // first line should be "_code"
+            if cleaned_content[0].content.trim() == "_code" {
+                cleaned_content.remove(0);
+            } else {
+                return Err(format!(
+                    "could not find begin of code section, missing '_code' in file {}",
+                    file_name
+                ));
+            }
             return Ok(AsmSections {
-                code: Some(input_file.content.clone()),
+                code: Some(cleaned_content),
                 rom: None,
-            })
+            });
         }
 
         // treat everything as rom
         (true, false) => {
+            // remove empty lines
+            let mut cleaned_content: Vec<_> = input_file
+                .content
+                .iter()
+                .filter(|line| !line.content.chars().all(|c| c.is_whitespace()))
+                .map(|e| e.clone())
+                .collect();
+            // first line should be "_rom"
+            if cleaned_content[0].content.trim() == "_rom" {
+                cleaned_content.remove(0);
+            } else {
+                return Err(format!(
+                    "could not find begin of rom section, missing '_rom' in file {}",
+                    file_name
+                ));
+            }
             return Ok(AsmSections {
                 code: None,
-                rom: Some(input_file.content.clone()),
-            })
+                rom: Some(cleaned_content),
+            });
         }
 
         // continue with parsing
@@ -418,6 +451,10 @@ fn parse_parameters(
                 ret.push(UnlinkedParameter::Determined(
                     instructions::Param::Constant(number),
                 ));
+                j_log(
+                    &format!("decoded instruction: {:?}\n", ret[ret.len() - 1]),
+                    3,
+                );
                 continue;
             } else {
                 return Err(format!(
@@ -433,6 +470,10 @@ fn parse_parameters(
                 ret.push(UnlinkedParameter::Determined(
                     instructions::Param::Register(reg),
                 ));
+                j_log(
+                    &format!("decoded instruction: {:?}\n", ret[ret.len() - 1]),
+                    3,
+                );
                 continue;
             } else {
                 return Err(format!(
@@ -442,8 +483,17 @@ fn parse_parameters(
             }
         }
 
-        // [a] , [a+1] , [a-1]  or [42]
-        if param.starts_with('[') && param.ends_with(']') {}
+        // [.label], [.label+1], [.label-1], [a] , [a+1] , [a-1]  or [42]
+        if param.starts_with('[') && param.ends_with(']') {
+            let mut s = param.chars();
+            s.next();
+            s.next_back();
+            let p = s.collect::<String>();
+            let param_no_bracket = p.trim();
+
+            // if it stats with a dot, that means it is a label.
+            if param_no_bracket.starts_with('.') {}
+        }
     }
 
     Ok(ret)
@@ -456,6 +506,16 @@ fn parse_rom(
     file_name: &str,
 ) -> Result<(), String> {
     return Ok(());
+}
+
+fn get_param_offset(inp: &str) -> Option<i32> {
+    let trimmed = inp.trim();
+    if trimmed.starts_with(['+', '-']) {
+        // remove the '+'
+        let maybe_number: String = trimmed.chars().skip(1).collect();
+        return maybe_number.parse::<i32>().ok();
+    }
+    None
 }
 
 fn parse_register(inp: &str) -> Option<register::Register> {
