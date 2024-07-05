@@ -482,6 +482,7 @@ fn parse_parameters(
             // remove leading dot
             let label_name: String = param.chars().skip(1).collect();
 
+            // NOTE: do not allow a label to have a offset if its not derefed
             if label_name.chars().all(|c| c.is_alphanumeric() || c == '_') {
                 ret.push(UnlinkedParameter::LinkerReslovedLabel(
                     LinkerResolvedLabel {
@@ -490,6 +491,7 @@ fn parse_parameters(
                     },
                 ));
                 j_log(&format!("decoded parameter: {:?}\n", ret[ret.len() - 1]), 3);
+                continue;
             } else {
                 return Err(format!(
                     "could not parse label name '{}' in line {} in file {}",
@@ -501,10 +503,26 @@ fn parse_parameters(
         //  [.label], [.label+1], [.label-1], [a] , [a+1] , [a-1]  or [42]
         if param.starts_with('[') && param.ends_with(']') {
             let mut s = param.chars();
+            // remove '[' and ']'
             s.next();
             s.next_back();
             let p = s.collect::<String>();
             let param_no_bracket = p.trim();
+
+            // check if the content is just a positive integer
+            if param_no_bracket.chars().all(|c| c.is_ascii_digit()) {
+                let val: u64 = param_no_bracket.parse().or_else(|_| {
+                    Err(format!(
+                        "could not parse number in dref in line {} in file {}",
+                        line_number, file_name
+                    ))
+                })?;
+                ret.push(UnlinkedParameter::Determined(instructions::Param::MemPtr(
+                    val,
+                )));
+                j_log(&format!("decoded parameter: {:?}\n", ret[ret.len() - 1]), 3);
+                continue;
+            }
 
             // if it stats with a dot, that means it is a label.
             if param_no_bracket.starts_with('.') {
