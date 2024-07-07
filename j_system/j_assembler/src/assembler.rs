@@ -381,7 +381,8 @@ fn parse_instructions(
                         param2: Some(params[1].clone()),
                     });
                 } else {
-                    return Err(format!("instruction 'add' needs 2 parameters but only {} could be parsed in line {} in file '{}' ",params.len(),line.line_number, file_name));
+                    return Err(format!("instruction 'add' needs 2 parameters but only {} could be parsed in line {} in file '{}' ", 
+                    params.len(),line.line_number, file_name));
                 }
             }
 
@@ -395,7 +396,8 @@ fn parse_instructions(
                         param2: Some(params[1].clone()),
                     });
                 } else {
-                    return Err(format!("instruction 'sub' needs 2 parameters but only {} could be parsed in line {} in file '{}' ",params.len(),line.line_number, file_name));
+                    return Err(format!("instruction 'sub' needs 2 parameters but only {} could be parsed in line {} in file '{}' ", 
+                    params.len(),line.line_number, file_name));
                 }
             }
 
@@ -546,7 +548,7 @@ fn parse_rom(
 fn get_param_offset(inp: &str) -> Option<i32> {
     let trimmed = inp.trim();
     if trimmed.starts_with(['+', '-']) {
-        // remove the '+'
+        // remove the '+' / '-'
         let maybe_number: String = trimmed.chars().skip(1).collect();
         return maybe_number.parse::<i32>().ok();
     }
