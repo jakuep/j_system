@@ -463,20 +463,12 @@ fn parse_parameters(
             }
         }
 
-        let char_amount = param.chars().count();
-        if char_amount > 0 && char_amount <= 3 {
-            if let Some(reg) = parse_register(param) {
-                ret.push(UnlinkedParameter::Determined(
-                    instructions::Param::Register(reg),
-                ));
-                j_log(&format!("decoded parameter: {:?}\n", ret[ret.len() - 1]), 3);
-                continue;
-            } else {
-                return Err(format!(
-                    "could not resovle register value '{}' in line {} in file '{}'",
-                    param, line_number, file_name
-                ));
-            }
+        if let Some(reg) = parse_register(param) {
+            ret.push(UnlinkedParameter::Determined(
+                instructions::Param::Register(reg),
+            ));
+            j_log(&format!("decoded parameter: {:?}\n", ret[ret.len() - 1]), 3);
+            continue;
         }
 
         // check for label without deref
@@ -528,9 +520,18 @@ fn parse_parameters(
 
             // if it stats with a dot, that means it is a label.
             if param_no_bracket.starts_with('.') {
-                // check if the label
+                // remove the dot & remove all whitespaces
+                let label_with_maybe_offset: String = param_no_bracket
+                    .chars()
+                    .skip(1)
+                    .filter(|c| !c.is_whitespace())
+                    .collect();
             }
         }
+        return Err(format!(
+            "could not parse parameter '{}' in line {} in file '{}'\n",
+            param, line_number, file_name
+        ));
     }
 
     Ok(ret)

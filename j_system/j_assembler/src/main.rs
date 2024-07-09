@@ -47,8 +47,8 @@ fn main() {
         match assembler::assemble_file(file, file_name) {
             Ok(assembled_file) => assembled_files.push(assembled_file),
             Err(e) => {
-                print!("{}\n", e);
-                process::exit(0);
+                print!("ERROR: {}\n", e);
+                process::exit(-1);
             }
         }
     }
