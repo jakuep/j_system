@@ -113,6 +113,36 @@ pub enum UnlinkedParameter {
 }
 
 impl UnlinkedParameter {
+    pub fn is_register(&self) -> bool {
+        if let UnlinkedParameter::Determined(instructions::Param::Register(_)) = self {
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn is_constant(&self) -> bool {
+        if let UnlinkedParameter::Determined(instructions::Param::Constant(_)) = self {
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn is_not_constant(&self) -> bool {
+        // check if the parameter is a constant.
+        // that is the case when a prameter is directly determined to be a constant
+        // or when it is a unresolved label corrosponing to a cosnstant aka not using dref
+        match self {
+            UnlinkedParameter::Determined(instructions::Param::Constant(_))
+            | UnlinkedParameter::LinkerReslovedLabel(LinkerResolvedLabel {
+                label_name: _,
+                teip: LabelUse::Raw,
+            }) => false,
+            _ => true,
+        }
+    }
+
     pub fn size(&self) -> u8 {
         match self {
             Self::Determined(d) => match d {
@@ -374,14 +404,19 @@ fn parse_instructions(
             "add" => {
                 let params = parse_parameters(parameter_part, line.line_number, file_name)?;
                 if params.len() == 2 {
-                    parsed_instructions.push(UnlinkedInstruction {
-                        line: line.line_number,
-                        inst: instructions::InstructionEnum::add,
-                        param1: Some(params[0].clone()),
-                        param2: Some(params[1].clone()),
-                    });
+                    if params[0].is_register() {
+                        parsed_instructions.push(UnlinkedInstruction {
+                            line: line.line_number,
+                            inst: instructions::InstructionEnum::add,
+                            param1: Some(params[0].clone()),
+                            param2: Some(params[1].clone()),
+                        });
+                    } else {
+                        return Err(format!("instruction 'add' has 2 parameters but the first has to be a register line {} in file '{}' ", 
+                    line.line_number, file_name));
+                    }
                 } else {
-                    return Err(format!("instruction 'add' needs 2 parameters but only {} could be parsed in line {} in file '{}' ", 
+                    return Err(format!("instruction 'add' needs 2 parameters but {} were parsed in line {} in file '{}' ", 
                     params.len(),line.line_number, file_name));
                 }
             }
@@ -389,38 +424,343 @@ fn parse_instructions(
             "sub" => {
                 let params = parse_parameters(parameter_part, line.line_number, file_name)?;
                 if params.len() == 2 {
-                    parsed_instructions.push(UnlinkedInstruction {
-                        line: line.line_number,
-                        inst: instructions::InstructionEnum::sub,
-                        param1: Some(params[0].clone()),
-                        param2: Some(params[1].clone()),
-                    });
+                    if params[0].is_register() {
+                        parsed_instructions.push(UnlinkedInstruction {
+                            line: line.line_number,
+                            inst: instructions::InstructionEnum::sub,
+                            param1: Some(params[0].clone()),
+                            param2: Some(params[1].clone()),
+                        });
+                    } else {
+                        return Err(format!("instruction 'sub' has 2 parameters but the first has to be a register line {} in file '{}' ", 
+                    line.line_number, file_name));
+                    }
                 } else {
-                    return Err(format!("instruction 'sub' needs 2 parameters but only {} could be parsed in line {} in file '{}' ", 
+                    return Err(format!("instruction 'sub' needs 2 parameters but {} were parsed in line {} in file '{}' ", 
                     params.len(),line.line_number, file_name));
                 }
             }
 
-            "xor" => {}
-            "or" => {}
-            "and" => {}
-            "shr" => {}
-            "shl" => {}
-            "jmp" => {}
-            "cmp" => {}
-            "je" => {}
-            "jeg" => {}
-            "jel" => {}
-            "jg" => {}
-            "jl" => {}
-            "mov" => {}
-            "push" => {}
-            "pop" => {}
-            "pusha" => {}
-            "popa" => {}
-            "call" => {}
-            "ret" => {}
-            "sys" => {}
+            "xor" => {
+                let params = parse_parameters(parameter_part, line.line_number, file_name)?;
+                if params.len() == 2 {
+                    if params[0].is_register() {
+                        parsed_instructions.push(UnlinkedInstruction {
+                            line: line.line_number,
+                            inst: instructions::InstructionEnum::xor,
+                            param1: Some(params[0].clone()),
+                            param2: Some(params[1].clone()),
+                        });
+                    } else {
+                        return Err(format!("instruction 'xor' has 2 parameters but the first has to be a register line {} in file '{}' ", 
+                    line.line_number, file_name));
+                    }
+                } else {
+                    return Err(format!("instruction 'xor' needs 2 parameters but {} were parsed in line {} in file '{}' ", 
+                    params.len(),line.line_number, file_name));
+                }
+            }
+            "or" => {
+                let params = parse_parameters(parameter_part, line.line_number, file_name)?;
+                if params.len() == 2 {
+                    if params[0].is_register() {
+                        parsed_instructions.push(UnlinkedInstruction {
+                            line: line.line_number,
+                            inst: instructions::InstructionEnum::or,
+                            param1: Some(params[0].clone()),
+                            param2: Some(params[1].clone()),
+                        });
+                    } else {
+                        return Err(format!("instruction 'or' has 2 parameters but the first has to be a register line {} in file '{}' ", 
+                    line.line_number, file_name));
+                    }
+                } else {
+                    return Err(format!("instruction 'or' needs 2 parameters but {} were parsed in line {} in file '{}' ", 
+                    params.len(),line.line_number, file_name));
+                }
+            }
+            "and" => {
+                let params = parse_parameters(parameter_part, line.line_number, file_name)?;
+                if params.len() == 2 {
+                    if params[0].is_register() {
+                        parsed_instructions.push(UnlinkedInstruction {
+                            line: line.line_number,
+                            inst: instructions::InstructionEnum::and,
+                            param1: Some(params[0].clone()),
+                            param2: Some(params[1].clone()),
+                        });
+                    } else {
+                        return Err(format!("instruction 'and' has 2 parameters but the first has to be a register line {} in file '{}' ", 
+                    line.line_number, file_name));
+                    }
+                } else {
+                    return Err(format!("instruction 'and' needs 2 parameters but {} were parsed in line {} in file '{}' ", 
+                    params.len(),line.line_number, file_name));
+                }
+            }
+            "shr" => {
+                let params = parse_parameters(parameter_part, line.line_number, file_name)?;
+                if params.len() == 2 {
+                    if params[0].is_register() && params[1].is_constant() {
+                        parsed_instructions.push(UnlinkedInstruction {
+                            line: line.line_number,
+                            inst: instructions::InstructionEnum::shr,
+                            param1: Some(params[0].clone()),
+                            param2: Some(params[1].clone()),
+                        });
+                    } else {
+                        return Err(format!("instruction 'shr' has 2 parameters but the first has to be a register line {} in file '{}' ", 
+                    line.line_number, file_name));
+                    }
+                } else {
+                    return Err(format!("instruction 'shr' needs 2 parameters but {} were parsed in line {} in file '{}' ", 
+                    params.len(),line.line_number, file_name));
+                }
+            }
+            "shl" => {
+                let params = parse_parameters(parameter_part, line.line_number, file_name)?;
+                if params.len() == 2 {
+                    if params[0].is_register() && params[1].is_constant() {
+                        parsed_instructions.push(UnlinkedInstruction {
+                            line: line.line_number,
+                            inst: instructions::InstructionEnum::shl,
+                            param1: Some(params[0].clone()),
+                            param2: Some(params[1].clone()),
+                        });
+                    } else {
+                        return Err(format!("instruction 'shl' has 2 parameters but the first has to be a register line {} in file '{}' ", 
+                    line.line_number, file_name));
+                    }
+                } else {
+                    return Err(format!("instruction 'shl' needs 2 parameters but {} were parsed in line {} in file '{}' ", 
+                    params.len(),line.line_number, file_name));
+                }
+            }
+            "jmp" => {
+                let params = parse_parameters(parameter_part, line.line_number, file_name)?;
+                if params.len() == 1 {
+                    parsed_instructions.push(UnlinkedInstruction {
+                        line: line.line_number,
+                        inst: instructions::InstructionEnum::jmp,
+                        param1: Some(params[0].clone()),
+                        param2: None,
+                    });
+                } else {
+                    return Err(format!("instruction 'jmp' needs 1 parameter but {} were parsed in line {} in file '{}' ", 
+                    params.len(),line.line_number, file_name));
+                }
+            }
+            "cmp" => {
+                let params = parse_parameters(parameter_part, line.line_number, file_name)?;
+                if params.len() == 2 {
+                    parsed_instructions.push(UnlinkedInstruction {
+                        line: line.line_number,
+                        inst: instructions::InstructionEnum::cmp,
+                        param1: Some(params[0].clone()),
+                        param2: Some(params[1].clone()),
+                    });
+                } else {
+                    return Err(format!("instruction 'cmp' needs 2 parameters but {} were parsed in line {} in file '{}' ", 
+                    params.len(),line.line_number, file_name));
+                }
+            }
+            "je" => {
+                let params = parse_parameters(parameter_part, line.line_number, file_name)?;
+                if params.len() == 1 {
+                    parsed_instructions.push(UnlinkedInstruction {
+                        line: line.line_number,
+                        inst: instructions::InstructionEnum::je,
+                        param1: Some(params[0].clone()),
+                        param2: None,
+                    });
+                } else {
+                    return Err(format!("instruction 'je' needs 1 parameter but {} were parsed in line {} in file '{}' ", 
+                    params.len(),line.line_number, file_name));
+                }
+            }
+            "jeg" => {
+                let params = parse_parameters(parameter_part, line.line_number, file_name)?;
+                if params.len() == 1 {
+                    parsed_instructions.push(UnlinkedInstruction {
+                        line: line.line_number,
+                        inst: instructions::InstructionEnum::jeg,
+                        param1: Some(params[0].clone()),
+                        param2: None,
+                    });
+                } else {
+                    return Err(format!("instruction 'jeg' needs 1 parameter but {} were parsed in line {} in file '{}' ", 
+                    params.len(),line.line_number, file_name));
+                }
+            }
+            "jel" => {
+                let params = parse_parameters(parameter_part, line.line_number, file_name)?;
+                if params.len() == 1 {
+                    parsed_instructions.push(UnlinkedInstruction {
+                        line: line.line_number,
+                        inst: instructions::InstructionEnum::jel,
+                        param1: Some(params[0].clone()),
+                        param2: None,
+                    });
+                } else {
+                    return Err(format!("instruction 'jel' needs 1 parameter but {} were parsed in line {} in file '{}' ", 
+                    params.len(),line.line_number, file_name));
+                }
+            }
+            "jg" => {
+                let params = parse_parameters(parameter_part, line.line_number, file_name)?;
+                if params.len() == 1 {
+                    parsed_instructions.push(UnlinkedInstruction {
+                        line: line.line_number,
+                        inst: instructions::InstructionEnum::jg,
+                        param1: Some(params[0].clone()),
+                        param2: None,
+                    });
+                } else {
+                    return Err(format!("instruction 'jg' needs 1 parameter but {} were parsed in line {} in file '{}' ", 
+                    params.len(),line.line_number, file_name));
+                }
+            }
+            "jl" => {
+                let params = parse_parameters(parameter_part, line.line_number, file_name)?;
+                if params.len() == 1 {
+                    parsed_instructions.push(UnlinkedInstruction {
+                        line: line.line_number,
+                        inst: instructions::InstructionEnum::jl,
+                        param1: Some(params[0].clone()),
+                        param2: None,
+                    });
+                } else {
+                    return Err(format!("instruction 'jl' needs 1 parameter but {} were parsed in line {} in file '{}' ", 
+                    params.len(),line.line_number, file_name));
+                }
+            }
+            "mov" => {
+                let params = parse_parameters(parameter_part, line.line_number, file_name)?;
+                if params.len() == 2 {
+                    if params[0].is_not_constant() {
+                        parsed_instructions.push(UnlinkedInstruction {
+                            line: line.line_number,
+                            inst: instructions::InstructionEnum::mov,
+                            param1: Some(params[0].clone()),
+                            param2: Some(params[1].clone()),
+                        });
+                    } else {
+                        return Err(format!("instruction 'mov' has 2 parameters but the first can not be a constant line {} in file '{}' ", 
+                    line.line_number, file_name));
+                    }
+                } else {
+                    return Err(format!("instruction 'mov' needs 2 parameters but {} were parsed in line {} in file '{}' ", 
+                    params.len(),line.line_number, file_name));
+                }
+            }
+            "push" => {
+                let params = parse_parameters(parameter_part, line.line_number, file_name)?;
+                if params.len() == 1 {
+                    if params[0].is_register() {
+                        parsed_instructions.push(UnlinkedInstruction {
+                            line: line.line_number,
+                            inst: instructions::InstructionEnum::push,
+                            param1: Some(params[0].clone()),
+                            param2: None,
+                        });
+                    } else {
+                        return Err(format!("instruction 'push' has 1 parameter but the first has to be a register line {} in file '{}' ", 
+                line.line_number, file_name));
+                    }
+                } else {
+                    return Err(format!("instruction 'push' needs 1 parameter but {} were parsed in line {} in file '{}' ", 
+                    params.len(),line.line_number, file_name));
+                }
+            }
+            "pop" => {
+                let params = parse_parameters(parameter_part, line.line_number, file_name)?;
+                if params.len() == 1 {
+                    if params[0].is_register() {
+                        parsed_instructions.push(UnlinkedInstruction {
+                            line: line.line_number,
+                            inst: instructions::InstructionEnum::pop,
+                            param1: Some(params[0].clone()),
+                            param2: None,
+                        });
+                    } else {
+                        return Err(format!("instruction 'pop' has 1 parameter but the first has to be a register line {} in file '{}' ", 
+                line.line_number, file_name));
+                    }
+                } else {
+                    return Err(format!("instruction 'pop' needs 1 parameter but {} were parsed in line {} in file '{}' ", 
+                    params.len(),line.line_number, file_name));
+                }
+            }
+            "pusha" => {
+                let params = parse_parameters(parameter_part, line.line_number, file_name)?;
+                if params.len() == 0 {
+                    parsed_instructions.push(UnlinkedInstruction {
+                        line: line.line_number,
+                        inst: instructions::InstructionEnum::pusha,
+                        param1: None,
+                        param2: None,
+                    });
+                } else {
+                    return Err(format!("instruction 'pusha' needs 0 parameters but {} were parsed in line {} in file '{}' ", 
+                    params.len(),line.line_number, file_name));
+                }
+            }
+            "popa" => {
+                let params = parse_parameters(parameter_part, line.line_number, file_name)?;
+                if params.len() == 0 {
+                    parsed_instructions.push(UnlinkedInstruction {
+                        line: line.line_number,
+                        inst: instructions::InstructionEnum::popa,
+                        param1: None,
+                        param2: None,
+                    });
+                } else {
+                    return Err(format!("instruction 'popa' needs 0 parameters but {} were parsed in line {} in file '{}' ", 
+                    params.len(),line.line_number, file_name));
+                }
+            }
+            "call" => {
+                let params = parse_parameters(parameter_part, line.line_number, file_name)?;
+                if params.len() == 1 {
+                    parsed_instructions.push(UnlinkedInstruction {
+                        line: line.line_number,
+                        inst: instructions::InstructionEnum::push,
+                        param1: Some(params[0].clone()),
+                        param2: None,
+                    });
+                } else {
+                    return Err(format!("instruction 'call' needs 1 parameter but {} were parsed in line {} in file '{}' ", 
+                    params.len(),line.line_number, file_name));
+                }
+            }
+            "ret" => {
+                let params = parse_parameters(parameter_part, line.line_number, file_name)?;
+                if params.len() == 1 {
+                    parsed_instructions.push(UnlinkedInstruction {
+                        line: line.line_number,
+                        inst: instructions::InstructionEnum::ret,
+                        param1: Some(params[0].clone()),
+                        param2: None,
+                    });
+                } else {
+                    return Err(format!("instruction 'ret' needs 1 parameter but {} were parsed in line {} in file '{}' ", 
+                    params.len(),line.line_number, file_name));
+                }
+            }
+            "sys" => {
+                let params = parse_parameters(parameter_part, line.line_number, file_name)?;
+                if params.len() == 0 {
+                    parsed_instructions.push(UnlinkedInstruction {
+                        line: line.line_number,
+                        inst: instructions::InstructionEnum::sys,
+                        param1: None,
+                        param2: None,
+                    });
+                } else {
+                    return Err(format!("instruction 'sys' needs 0 parameters but {} were parsed in line {} in file '{}' ", 
+                    params.len(),line.line_number, file_name));
+                }
+            }
             x => {
                 return Err(format!(
                     "could not parse instruction '{}' in line {} in file '{}'",
@@ -428,6 +768,13 @@ fn parse_instructions(
                 ))
             }
         }
+        j_log(
+            &format!(
+                "decoded instruction: {:?}\n",
+                parsed_instructions[parsed_instructions.len() - 1].inst
+            ),
+            3,
+        );
     }
 
     return Ok(());
@@ -601,14 +948,9 @@ fn parse_parameters(
                 }
             }
         }
-        return Err(format!(
-            "could not parse parameter '{}' in line {} in file '{}'\n",
-            param, line_number, file_name
-        ));
     }
 
     Ok(ret)
-    //Err(format!("not implemented!"))
 }
 
 fn parse_rom(
