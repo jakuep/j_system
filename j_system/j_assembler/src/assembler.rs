@@ -526,6 +526,79 @@ fn parse_parameters(
                     .skip(1)
                     .filter(|c| !c.is_whitespace())
                     .collect();
+                // get only the labelname aka split off the offset part if it is present
+                // otherwise just get the label as parameter
+                if let Some(offset_begins_at) = label_with_maybe_offset.find(['+', '-']) {
+                    let offet_part = &label_with_maybe_offset[offset_begins_at..].trim();
+                    let label_name = &label_with_maybe_offset[..offset_begins_at].trim();
+                    if let Some(param_offset) = get_param_offset(offet_part) {
+                        if label_name.chars().all(|c| c.is_alphanumeric() || c == '_') {
+                            ret.push(UnlinkedParameter::LinkerReslovedLabel(
+                                LinkerResolvedLabel {
+                                    label_name: label_name.to_string(),
+                                    teip: LabelUse::DerefOffset(param_offset),
+                                },
+                            ));
+                            j_log(&format!("decoded parameter: {:?}\n", ret[ret.len() - 1]), 3);
+                            continue;
+                        } else {
+                            return Err(format!(
+                                "could not parse parameter '{}' in line {} in file '{}'\n",
+                                param, line_number, file_name,
+                            ));
+                        }
+                    } else {
+                        return Err(format!("could not parse parameter '{}' in line {} in file '{}', because the offset of the label could not be decoded",param,line_number,file_name));
+                    }
+                } else {
+                    if label_with_maybe_offset
+                        .chars()
+                        .all(|c| c.is_alphanumeric() || c == '_')
+                    {
+                        ret.push(UnlinkedParameter::LinkerReslovedLabel(
+                            LinkerResolvedLabel {
+                                label_name: label_with_maybe_offset.to_string(),
+                                teip: LabelUse::Deref,
+                            },
+                        ));
+                        j_log(&format!("decoded parameter: {:?}\n", ret[ret.len() - 1]), 3);
+                        continue;
+                    }
+                }
+            }
+
+            // check for register dref oder register dref with offset
+            if let Some(offset_part) = param_no_bracket.find(['+', '-']) {
+                let reg_part = &param_no_bracket[..offset_part];
+                let offset_part = &param_no_bracket[offset_part..];
+                if let (Some(register), Some(offset)) = (
+                    parse_register(reg_part.trim()),
+                    get_param_offset(offset_part),
+                ) {
+                    ret.push(UnlinkedParameter::Determined(
+                        instructions::Param::MemPtrOffset(register, offset),
+                    ));
+                    j_log(&format!("decoded parameter: {:?}\n", ret[ret.len() - 1]), 3);
+                    continue;
+                } else {
+                    return Err(format!(
+                        "could not parse parameter '{}' in line {} in file '{}'\n",
+                        param, line_number, file_name
+                    ));
+                }
+            } else {
+                if let Some(register) = parse_register(param_no_bracket.trim()) {
+                    ret.push(UnlinkedParameter::Determined(
+                        instructions::Param::Register(register),
+                    ));
+                    j_log(&format!("decoded parameter: {:?}\n", ret[ret.len() - 1]), 3);
+                    continue;
+                } else {
+                    return Err(format!(
+                        "could not parse parameter '{}' in line {} in file '{}'\n",
+                        param, line_number, file_name
+                    ));
+                }
             }
         }
         return Err(format!(
@@ -546,12 +619,12 @@ fn parse_rom(
     return Ok(());
 }
 
-fn get_param_offset(inp: &str) -> Option<i32> {
+fn get_param_offset(inp: &str) -> Option<i64> {
     let trimmed = inp.trim();
     if trimmed.starts_with(['+', '-']) {
         // remove the '+' / '-'
         let maybe_number: String = trimmed.chars().skip(1).collect();
-        return maybe_number.parse::<i32>().ok();
+        return maybe_number.parse::<i64>().ok();
     }
     None
 }
