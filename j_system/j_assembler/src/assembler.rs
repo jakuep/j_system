@@ -61,14 +61,20 @@ lazy_static! {
     static ref RE_LABEL_DEREF:          Regex = Regex::new(r"^\s*\[\s*\.([a-zA-Z0-9]+)\s*\]\s*$").unwrap();
     static ref RE_LABEL_DEREF_OFFSET:   Regex = Regex::new(r"^\s*\[\s*\.([a-zA-Z0-9]+)\s*(\+|\-)\s*([0-9]+)\s*\]\s*$").unwrap();
 }
-#[derive(Copy, Clone, PartialEq, Debug)]
-pub struct RomData {}
+#[derive(Clone, PartialEq, Debug, Default)]
+pub struct RomData {
+    // the raw encooded data
+    raw_data: Vec<u64>,
+
+    // the offset into raw_data for the given label
+    label_offset: HashMap<String, usize>,
+}
 
 /// distinguish between Jumps and Rom labels beacuse rom and code section will be split
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub enum LabelType {
-    JumpLabel(u64),
-    Rom(u64),
+    JumpLabel(usize),
+    Rom(usize),
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -76,7 +82,9 @@ pub struct AssembledFile {
     /// contains the filename (and path?) of the original input file
     pub name: String,
     pub instructions: Vec<UnlinkedInstruction>,
-    pub rom: Vec<RomData>,
+    pub instruction_real_size: usize,
+    pub rom: Vec<u64>,
+    pub rom_real_size: usize,
 
     /// contains the offset in the file that the label points to.
     pub linker_info: HashMap<String, LabelType>,
@@ -162,6 +170,15 @@ impl UnlinkedParameter {
         }
     }
 }
+
+#[derive(Clone, PartialEq, Debug, Default)]
+pub struct ParsedCodeSection {
+    parsed_instructions: Vec<UnlinkedInstruction>,
+    // the offset into final raw data of the instructions for the given label
+    label_offset: HashMap<String, usize>,
+    // size of the final raw data in amounts of u64s
+    size: usize,
+}
 #[derive(Clone, PartialEq, Debug)]
 pub struct LinkerResolvedLabel {
     pub label_name: String,
@@ -179,44 +196,6 @@ pub enum LabelUse {
     /// eg: mov a, [.data+8]
     DerefOffset(i64),
 }
-
-/*
-pub fn assemble_into_u64_vec(input: Vec<String>, main_file_name: String) -> Vec<u64>
-{
-    let preprocessed = preprocess_input(input, main_file_name);
-    let code_section = preprocessed.code;
-    let rom_section  = preprocessed.rom;
-    let defines      = preprocessed.defines;
-
-    // TODO: why is this called rom table? doesnt it incluce all labels???
-    let (rom_raw, mut rom_table) = parse_rom(rom_section);
-
-    // save len for later insertion since it will be "moved" into binary
-    let rom_len = rom_raw.len() as u64;
-
-    let code_with_labels = parse_code(code_section, &mut rom_table);
-
-    let mut debug_symbols = vec![];
-
-    let (final_code, start_of_execution_ptr, instruction_position) = remove_labels_from_asm(code_with_labels, &mut rom_table, defines, &mut debug_symbols ,rom_len);
-
-    // create debug output
-    debug_ouput(&final_code, instruction_position, start_of_execution_ptr, rom_len, debug_symbols);
-
-    let mut binary: Vec<u64> = rom_raw;
-
-    binary.append(&mut serialize_asm(final_code));
-
-    // instert point of seclection split
-    binary.push(rom_len);
-
-    // inset start of execution
-    binary.push(start_of_execution_ptr);
-
-    binary
-}
-
-*/
 
 pub fn assemble_file(
     mut input_file: SourceFileRun2,
@@ -244,23 +223,41 @@ pub fn assemble_file(
     let sections = split_sections(&input_file, &file_name)?;
 
     // start parsing instructions and parameters
-    let mut parsed_instructions = vec![];
+    // TODO: make remove the default
+    let mut parsed_code_section = ParsedCodeSection::default();
     if let Some(code) = sections.code {
-        parse_instructions(code, &mut parsed_instructions, &file_name)?;
+        parsed_code_section = parse_instructions(code, &file_name)?;
     }
 
-    let mut parsed_rom = vec![];
+    // TODO: make remove the default
+    let mut parsed_rom = RomData::default();
     if let Some(rom) = sections.rom {
-        parse_rom(rom, &mut parsed_rom, &file_name)?;
+        parsed_rom = parse_rom(rom, &file_name)?;
     }
 
-    // parse rom section
+    // merge the hashmaps
+    // this is ok because a label must be unique in one file and cannot be used seperately for rom and jump
+    let mut offset_map = HashMap::new();
+    parsed_rom
+        .label_offset
+        .into_iter()
+        .for_each(|(label_name, offset)| {if let Some(_) = offset_map.insert(label_name, LabelType::Rom(offset)){
+            panic!("double definition in transfer of original hashmap from rom offsets - this should NOT FAIL!")
+        }});
+
+    for (label_name, offset) in parsed_code_section.label_offset {
+        if let Some(_) = offset_map.insert(label_name.clone(), LabelType::JumpLabel(offset)) {
+            return Err(format!("double definition of label '{}' in file '{}' - is defined once in code section and once in rom section. Label names must be unique per file regardless of the section they are used in",label_name, file_name));
+        }
+    }
 
     Ok(AssembledFile {
         name: file_name,
-        instructions: vec![],
-        rom: vec![],
-        linker_info: HashMap::new(),
+        instructions: parsed_code_section.parsed_instructions,
+        instruction_real_size: parsed_code_section.size,
+        rom_real_size: parsed_rom.raw_data.len(),
+        rom: parsed_rom.raw_data,
+        linker_info: offset_map,
     })
 }
 
@@ -385,12 +382,39 @@ fn split_sections(input_file: &SourceFileRun2, file_name: &str) -> Result<AsmSec
     }
 }
 
-fn parse_instructions(
-    code: Vec<RawLine>,
-    parsed_instructions: &mut Vec<UnlinkedInstruction>,
-    file_name: &str,
-) -> Result<(), String> {
+fn parse_instructions(code: Vec<RawLine>, file_name: &str) -> Result<ParsedCodeSection, String> {
+    // current offset of the final raw data to keep track of where the labels point to
+    let mut current_offset: usize = 0;
+    let mut parsed_instructions = vec![];
+    let mut label_offset = HashMap::new();
+
     for line in code {
+        // check for label
+        let line_t = line.content.trim();
+        if line_t.starts_with('.') && line_t.ends_with(':') {
+            let mut line_t = line_t.chars();
+            // remove the '.' and the ':'
+            line_t.next();
+            line_t.next_back();
+            let label_name: String = line_t.collect();
+            if let Some(_) = label_offset.insert(label_name.clone(), current_offset) {
+                return Err(format!(
+                    "double definition of label: {}, second definition in line {} in file {}",
+                    label_name, line.line_number, file_name
+                ));
+            } else {
+                j_log(
+                    &format!(
+                        "label parsed {} with offset: {}",
+                        label_name, current_offset
+                    ),
+                    3,
+                );
+            }
+            // prevent the label being interoreted as a instruction AND prevent the addition of a wrong offset
+            continue;
+        }
+
         // split in parts
         let parts: Vec<_> = line
             .content
@@ -768,16 +792,24 @@ fn parse_instructions(
                 ))
             }
         }
+        // add the size of the last added instruction
+        // IMPORTANT: only do this if a instruction was parsed - not when a lebel was parsed
+        current_offset += parsed_instructions[parsed_instructions.len() - 1].size() as usize;
+
         j_log(
             &format!(
-                "decoded instruction: {:?}\n",
+                "decoded instruction: {:?}",
                 parsed_instructions[parsed_instructions.len() - 1].inst
             ),
             3,
         );
     }
 
-    return Ok(());
+    return Ok(ParsedCodeSection {
+        size: current_offset,
+        parsed_instructions,
+        label_offset,
+    });
 }
 
 /// return a vector with all found parameter.
@@ -800,7 +832,7 @@ fn parse_parameters(
                 ret.push(UnlinkedParameter::Determined(
                     instructions::Param::Constant(number),
                 ));
-                j_log(&format!("decoded parameter: {:?}\n", ret[ret.len() - 1]), 3);
+                j_log(&format!("decoded parameter: {:?}", ret[ret.len() - 1]), 3);
                 continue;
             } else {
                 return Err(format!(
@@ -814,7 +846,7 @@ fn parse_parameters(
             ret.push(UnlinkedParameter::Determined(
                 instructions::Param::Register(reg),
             ));
-            j_log(&format!("decoded parameter: {:?}\n", ret[ret.len() - 1]), 3);
+            j_log(&format!("decoded parameter: {:?}", ret[ret.len() - 1]), 3);
             continue;
         }
 
@@ -831,7 +863,7 @@ fn parse_parameters(
                         teip: LabelUse::Raw,
                     },
                 ));
-                j_log(&format!("decoded parameter: {:?}\n", ret[ret.len() - 1]), 3);
+                j_log(&format!("decoded parameter: {:?}", ret[ret.len() - 1]), 3);
                 continue;
             } else {
                 return Err(format!(
@@ -861,7 +893,7 @@ fn parse_parameters(
                 ret.push(UnlinkedParameter::Determined(instructions::Param::MemPtr(
                     val,
                 )));
-                j_log(&format!("decoded parameter: {:?}\n", ret[ret.len() - 1]), 3);
+                j_log(&format!("decoded parameter: {:?}", ret[ret.len() - 1]), 3);
                 continue;
             }
 
@@ -886,11 +918,11 @@ fn parse_parameters(
                                     teip: LabelUse::DerefOffset(param_offset),
                                 },
                             ));
-                            j_log(&format!("decoded parameter: {:?}\n", ret[ret.len() - 1]), 3);
+                            j_log(&format!("decoded parameter: {:?}", ret[ret.len() - 1]), 3);
                             continue;
                         } else {
                             return Err(format!(
-                                "could not parse parameter '{}' in line {} in file '{}'\n",
+                                "could not parse parameter '{}' in line {} in file '{}'",
                                 param, line_number, file_name,
                             ));
                         }
@@ -908,7 +940,7 @@ fn parse_parameters(
                                 teip: LabelUse::Deref,
                             },
                         ));
-                        j_log(&format!("decoded parameter: {:?}\n", ret[ret.len() - 1]), 3);
+                        j_log(&format!("decoded parameter: {:?}", ret[ret.len() - 1]), 3);
                         continue;
                     }
                 }
@@ -925,7 +957,7 @@ fn parse_parameters(
                     ret.push(UnlinkedParameter::Determined(
                         instructions::Param::MemPtrOffset(register, offset),
                     ));
-                    j_log(&format!("decoded parameter: {:?}\n", ret[ret.len() - 1]), 3);
+                    j_log(&format!("decoded parameter: {:?}", ret[ret.len() - 1]), 3);
                     continue;
                 } else {
                     return Err(format!(
@@ -938,11 +970,11 @@ fn parse_parameters(
                     ret.push(UnlinkedParameter::Determined(
                         instructions::Param::Register(register),
                     ));
-                    j_log(&format!("decoded parameter: {:?}\n", ret[ret.len() - 1]), 3);
+                    j_log(&format!("decoded parameter: {:?}", ret[ret.len() - 1]), 3);
                     continue;
                 } else {
                     return Err(format!(
-                        "could not parse parameter '{}' in line {} in file '{}'\n",
+                        "could not parse parameter '{}' in line {} in file '{}'",
                         param, line_number, file_name
                     ));
                 }
@@ -953,12 +985,39 @@ fn parse_parameters(
     Ok(ret)
 }
 
-fn parse_rom(
-    code: Vec<RawLine>,
-    parsed_rom: &mut Vec<RomData>,
-    file_name: &str,
-) -> Result<(), String> {
-    return Ok(());
+fn parse_rom(rom: Vec<RawLine>, file_name: &str) -> Result<RomData, String> {
+    let mut rom_data = RomData::default();
+    // iterate over lines
+    for line in rom {
+        let line_number = line.line_number;
+        let rom_line = line.content;
+
+        // find the ':' for the definiton
+        let doublepoint_char_idx = rom_line.find(':').ok_or(format!(
+            "could not find definition of label in line {} in file '{}'\n",
+            line_number, file_name
+        ))?;
+        let label_name = rom_line[..doublepoint_char_idx].trim();
+
+        // +1 to get rid of the ':'
+        let remaining = rom_line[doublepoint_char_idx + 1..].trim();
+
+        // check for correct naming of the label
+        if !label_name.chars().all(|c| c.is_alphanumeric() || c == '_') {
+            return Err(format!(
+                "could not parse the label name ->{}<- in line {} in file '{}'\n",
+                label_name, line_number, file_name
+            ));
+        }
+
+        // find the type of rom data
+        // i -> integer
+        // s -> string encoded as one char per u64 entry aka one char per adress
+        // ps -> packed string -> string encoded as up to 8 chars per u64 aka 8 chars per adress
+        // as -> string array -> an array of multiple strings sperated by null-termination of each element of the array, one char is encoded per u64
+        // ai -> ineger array
+    }
+    return Ok(rom_data);
 }
 
 fn get_param_offset(inp: &str) -> Option<i64> {

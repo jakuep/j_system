@@ -13,4 +13,5 @@ add a, [.testlabel]
 add a, [.testlabel+1]
 add a, [.testlabel-1]
 add a,32
+.test:
 mov b,a

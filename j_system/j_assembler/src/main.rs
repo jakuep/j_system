@@ -55,7 +55,7 @@ fn main() {
 
     // print assembler stage
     for file in assembled_files {
-        print!("{:?}\n", file);
+        print!("{:#?}\n", file);
     }
 
     print!("\n\n-----------------END ASSEMBLER-----------------\n\n");
