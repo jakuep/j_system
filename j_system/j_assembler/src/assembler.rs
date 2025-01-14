@@ -821,15 +821,15 @@ fn parse_parameters(
     line_number: u64,
     file_name: &str,
 ) -> Result<Vec<UnlinkedParameter>, String> {
+    if content.trim().is_empty() {
+        return Ok(vec![]);
+    }
     let parts: Vec<_> = content.trim().split(',').map(|s| s.trim()).collect();
 
     // maximum of 2 parametes allowed
     assert!(parts.len() <= 2);
     let mut ret = vec![];
     for param in parts {
-        if param.is_empty() {
-            continue;
-        }
         // check if value is a number
         if param.chars().all(|c| c.is_ascii_digit()) {
             let maybe_number = param.parse();
