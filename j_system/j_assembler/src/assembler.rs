@@ -827,6 +827,9 @@ fn parse_parameters(
     assert!(parts.len() <= 2);
     let mut ret = vec![];
     for param in parts {
+        if param.is_empty() {
+            continue;
+        }
         // check if value is a number
         if param.chars().all(|c| c.is_ascii_digit()) {
             let maybe_number = param.parse();
