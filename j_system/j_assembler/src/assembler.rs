@@ -386,6 +386,8 @@ fn parse_instructions(code: Vec<RawLine>, file_name: &str) -> Result<ParsedCodeS
     // current offset of the final raw data to keep track of where the labels point to
     let mut current_offset: usize = 0;
     let mut parsed_instructions = vec![];
+
+    // keep track of all labels and their offsets in the code section
     let mut label_offset = HashMap::new();
 
     for line in code {
